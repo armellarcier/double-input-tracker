@@ -1,66 +1,127 @@
 # Double Input Tracker
 
-Petite appli statique (GitHub Pages) pour suivre les doubles inputs des switchs d'un clavier mécanique.
-Les données sont stockées dans **votre Google Drive** (fichier `double-input-tracker.json`), avec une copie
-locale sur chaque appareil pour pouvoir saisir même quand la session Google a expiré.
+Suivez les **doubles inputs** (chatter) des switchs de votre clavier mécanique et découvrez si le problème
+vient du switch lui-même ou de son emplacement.
 
-## Fonctionnement
+**👉 [armellarcier.github.io/double-input-tracker](https://armellarcier.github.io/double-input-tracker/)**
 
-- **Créer un clavier** : nom, format (60 / 65 / 75 / TKL / 100 %) et disposition (AZERTY ISO, QWERTY UK/US).
-- **Signaler un double input** : touchez la touche, puis « ⚡ Double input ». Sur ordinateur, vous pouvez
-  aussi appuyer directement sur la touche physique pour l'ouvrir.
-- **Inverser deux switchs** : touchez la touche → « ⇄ Inverser avec… » → touchez l'autre touche.
-  L'appli sait ensuite quel switch est à quelle position, et la suite du suivi est attribuée au bon switch.
-- **Switch neuf** : remplace le switch d'une position (son compteur part de zéro).
-- **Coloration** « par position » ou « par switch », classement, et analyse des inversions
-  (doubles inputs par position/switch, durée, taux par semaine, étiquettes « suit le switch » /
-  « suit la position »).
-- Chaque action peut être annulée (toast) ou supprimée depuis l'historique.
+Application web gratuite, sans serveur ni compte à créer : vos données sont enregistrées dans **votre
+Google Drive**. Pensée pour le mobile, elle fonctionne aussi sur ordinateur.
 
-## Mise en place
+![Logo](logo-120.png)
 
-### 1. Google Cloud (une seule fois, ~5 min)
+---
 
-1. Ouvrez <https://console.cloud.google.com/> et créez un projet (ex. « double-input-tracker »).
-2. **APIs et services → Bibliothèque** : activez **Google Drive API**.
-3. **APIs et services → Écran de consentement OAuth** (Google Auth Platform) :
-   type **Externe**, renseignez le nom de l'appli et votre e-mail.
-   Dans **Audience**, laissez le statut « En test » et ajoutez votre adresse Google comme **utilisateur test**.
-   Ajoutez la portée `https://www.googleapis.com/auth/drive.file` (non sensible : l'appli ne voit que
-   les fichiers qu'elle a créés).
-4. **Identifiants → Créer des identifiants → ID client OAuth** :
-   - Type : **Application Web**
-   - Origines JavaScript autorisées :
-     - `https://armellarcier.github.io`
-     - `http://localhost:8000` (pour tester en local)
-   - Aucune URI de redirection n'est nécessaire.
-5. Copiez l'ID client (`xxxx.apps.googleusercontent.com`) dans `config.js`.
-   Ce n'est pas un secret, il peut être commité.
+## Pour les utilisateurs
 
-### 2. GitHub Pages
+### Démarrer
 
-```bash
-git init && git add . && git commit -m "Double Input Tracker"
-gh repo create double-input-tracker --public --source . --push
+1. Ouvrez l'application et connectez-vous avec Google.
+2. Créez un clavier : un nom, un format (60 %, 65 %, 75 %, TKL, 100 %) et une disposition
+   (AZERTY ISO, QWERTY ISO UK, QWERTY ANSI US).
+3. Sur mobile, ajoutez-la à l'écran d'accueil pour l'ouvrir comme une appli.
+
+### Au quotidien
+
+| Je veux…                         | Je fais…                                                                 |
+|----------------------------------|--------------------------------------------------------------------------|
+| Noter un double input            | Je touche la touche, puis **⚡ Double input**                            |
+| Le faire depuis mon ordinateur   | J'appuie directement sur la touche physique : elle s'ouvre dans l'appli |
+| Indiquer que j'ai inversé deux switchs | Touche → **⇄ Inverser avec…** → je touche l'autre touche          |
+| Indiquer un switch remplacé par un neuf | Touche → **♻ Switch neuf** (son compteur repart de zéro)        |
+| Corriger une erreur              | **Annuler** dans la notification, ou ✕ dans l'historique                 |
+
+### Lire les résultats
+
+- **Coloration par position** : doubles inputs survenus à chaque emplacement, quel que soit le switch.
+- **Coloration par switch** : doubles inputs du switch actuellement installé, où qu'il ait été avant.
+- **Classement** : les switchs les plus touchés et la part du clavier concernée.
+- **Analyse des inversions** : pour chaque switch déplacé et chaque position ayant changé de switch,
+  le nombre de doubles inputs, la durée et le taux par semaine.
+  - **« suit le switch »** → le switch est probablement défectueux.
+  - **« suit la position »** → regardez plutôt la soudure, le socket hotswap, le PCB ou le debounce du firmware.
+  - Une durée courte n'est pas encore significative : comparez les taux par semaine.
+
+### Vos données
+
+- Elles sont stockées dans un fichier `double-input-tracker.json` de votre Google Drive. L'application
+  n'a accès **qu'aux fichiers qu'elle a créés** (permission `drive.file`).
+- Une copie locale permet de continuer à saisir hors connexion ou quand la session Google a expiré
+  (au bout d'une heure) ; tout est envoyé à la reconnexion.
+- Vous pouvez utiliser plusieurs appareils : les données sont fusionnées, rien n'est écrasé.
+- Export JSON depuis le menu du compte. Détails : [règles de confidentialité](https://armellarcier.github.io/double-input-tracker/privacy.html)
+  · [conditions d'utilisation](https://armellarcier.github.io/double-input-tracker/terms.html).
+
+---
+
+## Pour les développeurs
+
+### Stack
+
+HTML, CSS et JavaScript vanilla : aucune dépendance, aucun build. Seul script externe :
+[Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model)
+pour obtenir un jeton OAuth (modèle « token », sans backend). Les appels à l'API Drive v3 se font avec `fetch`.
+
+```
+index.html          structure de la page et dialogues
+app.js              état, rendu, actions, authentification et synchro Drive
+layouts.js          définitions des claviers et libellés par disposition
+config.js           Client ID OAuth et nom du fichier Drive
+style.css           styles (clair / sombre via prefers-color-scheme)
+privacy.html, terms.html
 ```
 
-Puis sur GitHub : **Settings → Pages → Deploy from a branch → `main` / `/ (root)`**.
-L'appli sera disponible sur `https://armellarcier.github.io/double-input-tracker/`.
+### Modèle de données
 
-Sur mobile, « Ajouter à l'écran d'accueil » l'installe comme une appli.
+Le fichier Drive (et le cache `localStorage`) contient deux collections d'enregistrements, chacun
+avec un `id` et une date de modification `u` :
 
-### Tester en local
+```jsonc
+{
+  "v": 1,
+  "keyboards": { "<id>": { "id", "name", "size", "variant", "createdAt", "u", "deleted?" } },
+  "events": {
+    "<id>": { "id", "kb", "ts", "u", "deleted?", "type": "double", "key": "KeyQ" }
+    //        type "swap"    → "a", "b"  (deux positions)
+    //        type "replace" → "key"
+  }
+}
+```
+
+- **Les positions sont des `KeyboardEvent.code`**, ce qui permet de sélectionner une touche en appuyant dessus.
+- **L'emplacement des switchs n'est pas stocké** : il est recalculé en rejouant les événements par ordre
+  chronologique (`computeState` dans `app.js`). Au départ, chaque switch porte l'identifiant de sa
+  position d'origine ; un switch neuf reçoit `new:<id de l'événement>`.
+- **Synchro** : téléchargement du fichier distant, fusion enregistrement par enregistrement (le `u` le plus
+  récent gagne, les suppressions sont des marqueurs `deleted`), puis envoi si quelque chose a changé.
+  Aucune édition n'est perdue entre appareils.
+
+### Ajouter un format de clavier
+
+Les dispositions sont décrites dans `layouts.js` avec une mini-syntaxe par rangée :
+`Code` = touche 1u, `Code@1.5` = largeur, `Code^2` = hauteur, `Enter@iso` = Entrée ISO,
+`+0.5` = espace horizontal, `|0.5` = espace vertical. Les libellés propres à une langue vont dans `VARIANTS`.
+
+### Lancer en local
 
 ```bash
 python3 -m http.server 8000
 ```
 
-puis ouvrez <http://localhost:8000>.
+Ouvrez <http://localhost:8000>. Sans Client ID valide, l'application fonctionne en local uniquement
+(stockage dans le navigateur).
 
-## Notes
+### Déployer votre propre instance
 
-- Une session Google dure 1 h (limite des applis 100 % statiques, sans serveur pour rafraîchir le jeton).
-  Au-delà, un bouton « Se reconnecter » apparaît ; la reconnexion est en un clic puisque l'accès est
-  déjà accordé. Les saisies faites entre-temps sont gardées localement puis envoyées.
-- La synchro fusionne les données du Drive et de l'appareil (rien n'est écrasé si vous saisissez sur
-  le téléphone et l'ordinateur).
+1. Forkez le dépôt et activez GitHub Pages (**Settings → Pages → Deploy from a branch → `main` / root**).
+2. Dans [Google Cloud Console](https://console.cloud.google.com/) :
+   - activez la **Google Drive API** ;
+   - configurez l'écran de consentement OAuth (type Externe, portée `.../auth/drive.file`) ;
+   - créez un **ID client OAuth « Application Web »** avec comme origines JavaScript autorisées
+     `https://<utilisateur>.github.io` et `http://localhost:8000`. Aucune URI de redirection n'est nécessaire.
+3. Remplacez `clientId` dans `config.js` (ce n'est pas un secret).
+
+### Contribuer
+
+Tickets et pull requests bienvenus. Gardez l'esprit du projet : zéro dépendance, zéro build, données
+chez l'utilisateur.
