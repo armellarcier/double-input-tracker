@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Double Input Tracker</title>
+  <meta name="theme-color" content="#5b5bd6">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="icon.svg" alt="" width="24" height="24"> Double Input</div>
+    <div id="sync" class="sync"></div>
+    <button id="account" class="account" data-act="account"></button>
+  </header>
+
+  <main>
+    <div id="banner"></div>
+    <section id="kbBar" class="kb-bar"></section>
+    <section id="content"></section>
+  </main>
+
+  <div id="swapBar" class="swap-bar" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <dialog id="sheet" class="sheet"></dialog>
+
+  <dialog id="newKb" class="sheet">
+    <form method="dialog" class="sheet-body" id="newKbForm">
+      <div class="sheet-head">
+        <h2>Nouveau clavier</h2>
+        <button class="icon" value="cancel" aria-label="Fermer">✕</button>
+      </div>
+      <label>Nom
+        <input name="name" required maxlength="60" placeholder="ex. Keychron Q1">
+      </label>
+      <label>Format
+        <select name="size"></select>
+      </label>
+      <label>Disposition
+        <select name="variant"></select>
+      </label>
+      <button class="btn primary big" value="ok">Créer</button>
+    </form>
+  </dialog>
+
+  <dialog id="accountDlg" class="sheet"></dialog>
+
+  <script src="config.js"></script>
+  <script src="layouts.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
