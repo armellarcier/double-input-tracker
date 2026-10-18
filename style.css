@@ -68,7 +68,7 @@ h3 { font-size: .95rem; margin: 1.2rem 0 .5rem; }
 }
 .account img { width: 24px; height: 24px; border-radius: 50%; margin-left: -8px; }
 
-main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 96px; }
+main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 24px; }
 
 /* ---------- Generic */
 .card {
@@ -234,3 +234,10 @@ label input, label select {
 .toast button { background: none; border: 0; color: var(--accent); font-weight: 700; cursor: pointer; padding: 6px 8px; }
 @media (prefers-color-scheme: dark) { .toast button { color: #4b4bc8; } }
 [hidden] { display: none !important; }
+
+/* ---------- Pages légales et pied de page */
+.legal { max-width: 720px; padding-top: 24px; }
+.legal h1 { font-size: 1.6rem; margin: 8px 0 4px; }
+.legal h2 { margin: 24px 0 6px; }
+.legal a, .footer a { color: var(--accent); }
+.footer { text-align: center; font-size: .8rem; color: var(--muted); padding: 0 16px 90px; }

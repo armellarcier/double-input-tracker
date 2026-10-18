@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Règles de confidentialité · Double Input Tracker</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="legal">
+    <p><a href="./">← Double Input Tracker</a></p>
+    <h1>Règles de confidentialité</h1>
+    <p class="muted">Dernière mise à jour : 18 octobre 2026</p>
+
+    <h2>En bref</h2>
+    <p>Double Input Tracker est une application web statique, sans serveur. Ses auteurs ne collectent,
+    ne stockent et ne reçoivent aucune de vos données. Tout reste dans votre navigateur et dans votre
+    propre Google Drive.</p>
+
+    <h2>Données traitées</h2>
+    <ul>
+      <li><b>Données de suivi</b> : les claviers que vous créez et les événements que vous saisissez
+      (doubles inputs, inversions et remplacements de switchs, avec leur date).</li>
+      <li><b>Informations de compte Google</b> : votre nom, votre adresse e-mail et votre photo de profil,
+      lues via l'API Google Drive et affichées uniquement dans l'application.</li>
+    </ul>
+
+    <h2>Où sont stockées les données</h2>
+    <ul>
+      <li>Dans <b>votre Google Drive</b>, dans un fichier <code>double-input-tracker.json</code> créé par l'application.</li>
+      <li>Dans le <b>stockage local de votre navigateur</b> (localStorage), pour pouvoir saisir même
+      hors connexion. Le jeton d'accès Google y est gardé jusqu'à son expiration (1 heure).</li>
+    </ul>
+    <p>Aucune donnée n'est envoyée à un autre serveur que ceux de Google. L'application est hébergée par
+    GitHub Pages, qui peut enregistrer des journaux techniques d'accès (adresse IP, navigateur)
+    conformément à la <a href="https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement">politique de confidentialité de GitHub</a>.</p>
+
+    <h2>Utilisation des données Google</h2>
+    <p>L'application demande uniquement la permission <code>https://www.googleapis.com/auth/drive.file</code>,
+    qui lui permet d'accéder <b>seulement aux fichiers qu'elle a elle-même créés</b> dans votre Drive.
+    Elle ne peut ni lire ni modifier vos autres fichiers.</p>
+    <p>L'utilisation et le transfert des informations reçues des API Google respectent les
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">règles sur les données utilisateur des services d'API Google</a>,
+    y compris les exigences d'utilisation limitée (Limited Use). Ces données ne servent qu'à faire fonctionner
+    l'application ; elles ne sont ni vendues, ni partagées, ni utilisées à des fins publicitaires ou
+    pour entraîner des modèles d'IA.</p>
+
+    <h2>Vos contrôles</h2>
+    <ul>
+      <li>Exporter vos données : menu du compte → « Exporter les données ».</li>
+      <li>Supprimer vos données : supprimez le fichier <code>double-input-tracker.json</code> de votre Drive,
+      et à la déconnexion choisissez d'effacer les données de l'appareil.</li>
+      <li>Révoquer l'accès : « Se déconnecter » dans l'application, ou
+      <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>Pour toute question : <a href="https://github.com/armellarcier/double-input-tracker/issues">ouvrir un ticket sur GitHub</a>.</p>
+  </main>
+</body>
+</html>
