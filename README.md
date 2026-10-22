@@ -1,7 +1,7 @@
 # Double Input Tracker
 
-Suivez les **doubles inputs** (chatter) des switchs de votre clavier mécanique et découvrez si le problème
-vient du switch lui-même ou de son emplacement.
+Suivez les **doubles inputs** (chatter) et les **appuis manqués** des switchs de votre clavier mécanique,
+et découvrez si le problème vient du switch lui-même ou de son emplacement.
 
 **👉 [armellarcier.github.io/double-input-tracker](https://armellarcier.github.io/double-input-tracker/)**
 
@@ -26,6 +26,7 @@ Google Drive**. Pensée pour le mobile, elle fonctionne aussi sur ordinateur.
 | Je veux…                         | Je fais…                                                                 |
 |----------------------------------|--------------------------------------------------------------------------|
 | Noter un double input            | Je touche la touche, puis **⚡ Double input**                            |
+| Noter un appui non enregistré    | Je touche la touche, puis **⊘ Appui manqué**                             |
 | Le faire depuis mon ordinateur   | J'appuie directement sur la touche physique : elle s'ouvre dans l'appli |
 | Indiquer que j'ai inversé deux switchs | Touche → **⇄ Inverser avec…** → je touche l'autre touche          |
 | Indiquer un switch remplacé par un neuf | Touche → **♻ Switch neuf** (son compteur repart de zéro)        |
@@ -33,12 +34,16 @@ Google Drive**. Pensée pour le mobile, elle fonctionne aussi sur ordinateur.
 
 ### Lire les résultats
 
-- **Coloration par position** : doubles inputs survenus à chaque emplacement, quel que soit le switch.
-- **Coloration par switch** : doubles inputs du switch actuellement installé, où qu'il ait été avant.
+Les onglets **⚡ Doubles inputs** / **⊘ Appuis manqués** choisissent le symptôme affiché : coloration,
+statistiques, classement et analyse sont calculés séparément pour chacun. L'historique les montre tous.
+
+- **Coloration par position** : incidents survenus à chaque emplacement, quel que soit le switch.
+- **Coloration par switch** : incidents du switch actuellement installé, où qu'il ait été avant.
 - **Classement** : les switchs les plus touchés et la part du clavier concernée.
 - **Analyse des inversions** : pour chaque switch déplacé et chaque position ayant changé de switch,
-  le nombre de doubles inputs, la durée et le taux par semaine.
+  le nombre d'incidents, la durée et le taux par semaine.
   - **« suit le switch »** → le switch est probablement défectueux.
+  - Pour un appui manqué, pensez aussi à un switch mal enfoncé dans son socket ou à un stabilisateur qui accroche.
   - **« suit la position »** → regardez plutôt la soudure, le socket hotswap, le PCB ou le debounce du firmware.
   - Une durée courte n'est pas encore significative : comparez les taux par semaine.
 
@@ -81,13 +86,15 @@ avec un `id` et une date de modification `u` :
   "v": 1,
   "keyboards": { "<id>": { "id", "name", "size", "variant", "createdAt", "u", "deleted?" } },
   "events": {
-    "<id>": { "id", "kb", "ts", "u", "deleted?", "type": "double", "key": "KeyQ" }
+    "<id>": { "id", "kb", "ts", "u", "deleted?", "type": "double" | "skip", "key": "KeyQ" }
     //        type "swap"    → "a", "b"  (deux positions)
     //        type "replace" → "key"
   }
 }
 ```
 
+- **Types d'incidents** : déclarés dans `KINDS` (`app.js`) ; en ajouter un suffit à créer son onglet,
+  son bouton et ses statistiques.
 - **Les positions sont des `KeyboardEvent.code`**, ce qui permet de sélectionner une touche en appuyant dessus.
 - **L'emplacement des switchs n'est pas stocké** : il est recalculé en rejouant les événements par ordre
   chronologique (`computeState` dans `app.js`). Au départ, chaque switch porte l'identifiant de sa

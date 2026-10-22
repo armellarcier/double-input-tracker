@@ -9,8 +9,14 @@
   const HAS_CLIENT_ID = !!CFG.clientId && !CFG.clientId.startsWith('REMPLACER');
   const K = {
     data: 'dit.data', token: 'dit.token', user: 'dit.user', fileId: 'dit.fileId',
-    dirty: 'dit.dirty', kb: 'dit.kb', heat: 'dit.heat',
+    dirty: 'dit.dirty', kb: 'dit.kb', heat: 'dit.heat', kind: 'dit.kind',
   };
+  // Types d'incidents suivis. Tous les textes de l'interface en dérivent.
+  const KINDS = {
+    double: { ico: '⚡', one: 'double input', many: 'doubles inputs', title: 'Doubles inputs', col: 'Doubles' },
+    skip: { ico: '⊘', one: 'appui manqué', many: 'appuis manqués', title: 'Appuis manqués', col: 'Manqués' },
+  };
+  const cap = (t) => t[0].toUpperCase() + t.slice(1);
 
   // ---------- Utilitaires
   const $ = (s, el = document) => el.querySelector(s);
@@ -48,7 +54,7 @@
   const normalize = (d) => ({ v: 1, keyboards: d?.keyboards || {}, events: d?.events || {} });
   let data = normalize(lsGet(K.data));
 
-  const state = { kbId: lsGet(K.kb), heat: lsGet(K.heat, 'position'), swapFrom: null, sheetKey: null, histLimit: 30 };
+  const state = { kbId: lsGet(K.kb), heat: lsGet(K.heat, 'position'), kind: KINDS[lsGet(K.kind)] ? lsGet(K.kind) : 'double', swapFrom: null, sheetKey: null, histLimit: 30 };
 
   const keyboards = () => Object.values(data.keyboards).filter((k) => !k.deleted).sort((a, b) => a.createdAt - b.createdAt);
   function currentKb() {
@@ -95,7 +101,8 @@
     .sort().join('|');
 
   // ---------- Calcul de l'état d'un clavier
-  function computeState(kb) {
+  // Compte les incidents du type `kind` ; les autres incidents restent dans `events` et `swAt`.
+  function computeState(kb, kind) {
     const layout = L.build(kb.size, kb.variant);
     const name = (code) => L.name(code, kb.variant);
     const pos = {};        // position (code) -> id du switch installé
@@ -121,13 +128,14 @@
 
     const events = kbEvents(kb.id);
     for (const e of events) {
-      if (e.type === 'double') {
+      if (KINDS[e.type]) {
         if (!(e.key in pos)) continue;
         const S = switches[pos[e.key]];
+        swAt[e.id] = S.id;
+        if (e.type !== kind) continue;
         S.count++;
         S.byPos[e.key] = (S.byPos[e.key] || 0) + 1;
         keyCount[e.key] = (keyCount[e.key] || 0) + 1;
-        swAt[e.id] = S.id;
       } else if (e.type === 'swap') {
         if (!(e.a in pos) || !(e.b in pos)) continue;
         const sa = pos[e.a], sb = pos[e.b];
@@ -151,8 +159,8 @@
     const now = Date.now();
     for (const id of Object.keys(seg)) close(id, now);
 
-    const doubles = events.filter((e) => e.type === 'double' && swAt[e.id]);
-    return { kb, layout, name, pos, switches, keyCount, swAt, replaced, events, doubles };
+    const incidents = events.filter((e) => e.type === kind && swAt[e.id]);
+    return { kb, kind, layout, name, pos, switches, keyCount, swAt, replaced, events, incidents };
   }
 
   // ---------- Google : authentification
@@ -302,7 +310,8 @@
 
   function render() {
     const kb = currentKb();
-    st = kb ? computeState(kb) : null;
+    st = kb ? computeState(kb, state.kind) : null;
+    content.dataset.kind = state.kind;
     renderTop();
     renderBanner();
     renderKbBar();
@@ -311,7 +320,7 @@
         <div class="card empty">
           <div class="big-ico">⌨️</div>
           <h2>Aucun clavier pour l'instant</h2>
-          <p class="muted">Créez votre clavier, puis touchez une touche à chaque double input pour en garder la trace.</p>
+          <p class="muted">Créez votre clavier, puis touchez une touche à chaque double input ou appui manqué pour en garder la trace.</p>
           <button class="btn primary" data-act="new-kb">Créer un clavier</button>
         </div>`;
     } else {
@@ -376,9 +385,13 @@
   }
 
   function boardHtml() {
-    const total = st.doubles.length;
+    const total = st.incidents.length;
+    const kd = KINDS[state.kind];
     return `
       <section class="card">
+        <div class="seg kinds" role="tablist" aria-label="Type d'incident">
+          ${Object.entries(KINDS).map(([k, v]) => `<button class="${state.kind === k ? 'on' : ''}" data-act="kind" data-v="${k}">${v.ico} ${v.title}</button>`).join('')}
+        </div>
         <div class="board-head">
           <div class="seg" role="tablist" aria-label="Colorer par">
             <button class="${state.heat === 'position' ? 'on' : ''}" data-act="heat" data-v="position">Par position</button>
@@ -388,9 +401,9 @@
         </div>
         <div class="kb-wrap" id="kbWrap"><div class="kb" id="kb"></div></div>
         <p class="hint">${state.heat === 'position'
-          ? 'Couleur = doubles inputs survenus à cet emplacement, quel que soit le switch.'
-          : 'Couleur = doubles inputs du switch actuellement installé, où qu\'il ait été avant.'}
-          Touchez une touche${matchMedia('(hover: hover)').matches ? ' (ou appuyez dessus sur votre clavier)' : ''} pour signaler un double input.</p>
+          ? `Couleur = ${kd.many} survenus à cet emplacement, quel que soit le switch.`
+          : `Couleur = ${kd.many} du switch actuellement installé, où qu'il ait été avant.`}
+          Touchez une touche${matchMedia('(hover: hover)').matches ? ' (ou appuyez dessus sur votre clavier)' : ''} pour signaler un incident.</p>
       </section>`;
   }
 
@@ -421,14 +434,16 @@
 
   function statsHtml() {
     const sws = Object.values(st.switches);
-    const total = st.doubles.length;
-    if (!total && !st.events.length) {
-      return `<section class="card"><h2>Statistiques</h2><p class="muted">Rien à signaler pour l'instant. Touchez une touche du clavier ci-dessus dès qu'un switch fait un double input.</p></section>`;
+    const kd = KINDS[state.kind];
+    const total = st.incidents.length;
+    if (!total) {
+      return `<section class="card"><h2>Statistiques</h2><p class="muted">Aucun ${kd.one} noté pour l'instant. Touchez une touche du clavier ci-dessus dès qu'il s'en produit un.</p></section>`
+        + (st.events.length ? `<div class="grid2">${analysisHtml()}</div>` : '');
     }
     const installed = st.layout.keys.length;
     const hitSw = sws.filter((s) => s.count > 0).length;
     const hitPos = Object.keys(st.keyCount).length;
-    const last = st.doubles[st.doubles.length - 1];
+    const last = st.incidents[st.incidents.length - 1];
 
     const ranked = sws.filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
     const maxC = ranked[0]?.count || 1;
@@ -448,14 +463,14 @@
 
     return `
       <div class="stats">
-        <div class="stat"><b>${total}</b><span>double${total > 1 ? 's' : ''} input${total > 1 ? 's' : ''}</span></div>
+        <div class="stat"><b>${total}</b><span>${total > 1 ? kd.many : kd.one}</span></div>
         <div class="stat"><b>${hitSw}<small class="muted"> / ${installed}</small></b><span>switchs concernés (${Math.round((hitSw / installed) * 100)} %)</span></div>
         <div class="stat"><b>${hitPos}</b><span>position${hitPos > 1 ? 's' : ''} concernée${hitPos > 1 ? 's' : ''}</span></div>
-        <div class="stat"><b>${last ? ago(last.ts) : '—'}</b><span>dernier double input</span></div>
+        <div class="stat"><b>${last ? ago(last.ts) : '—'}</b><span>dernier ${kd.one}</span></div>
       </div>
       <div class="grid2">
         <section class="card"><h2>Classement des switchs</h2>
-          ${ranked.length ? `<ul class="rank">${rankHtml}</ul>` : '<p class="muted">Aucun double input.</p>'}
+          ${ranked.length ? `<ul class="rank">${rankHtml}</ul>` : `<p class="muted">Aucun ${kd.one}.</p>`}
         </section>
         ${analysisHtml()}
       </div>`;
@@ -475,7 +490,7 @@
         <p class="explain">Pour savoir si c'est le switch ou l'emplacement (soudure, hotswap, PCB) qui pose problème,
         inversez un switch suspect avec un autre : touchez la touche puis « Inverser… ». L'analyse apparaîtra ici.</p></section>`;
     }
-    const table = (rows, head) => `<table><tr><th>${head}</th><th class="num">Doubles</th><th class="num">Durée</th><th class="num">/ sem.</th></tr>${rows}</table>`;
+    const table = (rows, head) => `<table><tr><th>${head}</th><th class="num">${KINDS[state.kind].col}</th><th class="num">Durée</th><th class="num">/ sem.</th></tr>${rows}</table>`;
 
     const movedHtml = moved.sort((a, b) => b.count - a.count).map((s) => {
       const withHits = Object.keys(s.byPos).length;
@@ -492,7 +507,7 @@
     }).join('');
 
     return `<section class="card"><h2>Analyse des inversions</h2>
-      <p class="explain">Si les doubles inputs <b>suivent le switch</b> après une inversion, le switch est en cause.
+      <p class="explain">Si les ${KINDS[state.kind].many} <b>suivent le switch</b> après une inversion, le switch est en cause.
       S'ils <b>restent sur la position</b>, regardez plutôt la soudure / le socket hotswap / le PCB ou le debounce du firmware.
       Comparez les taux par semaine : une durée courte n'est pas encore significative.</p>
       ${movedHtml}${posHtml}</section>`;
@@ -501,9 +516,9 @@
   function eventHtml(e) {
     const n = (c) => `<b>${esc(st.name(c))}</b>`;
     let ico, txt;
-    if (e.type === 'double') {
+    if (KINDS[e.type]) {
       const s = st.switches[st.swAt[e.id]];
-      ico = '⚡'; txt = `Double input sur ${n(e.key)} <span class="muted small">switch ${esc(s?.label || '?')}</span>`;
+      ico = KINDS[e.type].ico; txt = `${cap(KINDS[e.type].one)} sur ${n(e.key)} <span class="muted small">switch ${esc(s?.label || '?')}</span>`;
     } else if (e.type === 'swap') {
       ico = '⇄'; txt = `Inversion ${n(e.a)} ↔ ${n(e.b)}`;
     } else if (e.type === 'replace') {
@@ -536,6 +551,12 @@
     const sw = st.switches[st.pos[code]];
     const moved = !sw.isNew && sw.origin !== code ? ` <span class="tag">déplacé</span>` : '';
     const evs = st.events.filter((e) => e.key === code || e.a === code || e.b === code).reverse().slice(0, 8);
+    // Compteurs par type : position actuelle et switch installé.
+    const counts = (k) => {
+      const all = st.events.filter((e) => e.type === k && st.swAt[e.id]);
+      return { pos: all.filter((e) => e.key === code).length, sw: all.filter((e) => st.swAt[e.id] === sw.id).length };
+    };
+    const line = (f) => Object.entries(KINDS).map(([k, v]) => `<span class="k-${k}">${v.ico} <b>${counts(k)[f]}</b></span>`).join(' ');
     $('#sheet').innerHTML = `
       <div class="sheet-body">
         <div class="sheet-head">
@@ -544,10 +565,12 @@
           <button class="icon" data-act="close-sheet" aria-label="Fermer">✕</button>
         </div>
         <div class="mini">
-          <div><b>${st.keyCount[code] || 0}</b><span>sur cette position</span></div>
-          <div><b>${sw.count}</b><span>pour ce switch</span></div>
+          <div><div class="counts">${line('pos')}</div><span>sur cette position</span></div>
+          <div><div class="counts">${line('sw')}</div><span>pour ce switch</span></div>
         </div>
-        <button class="btn primary big" data-act="double">⚡ Double input</button>
+        <div class="row2">
+          ${Object.entries(KINDS).map(([k, v]) => `<button class="btn primary big k-${k}" data-act="incident" data-v="${k}">${v.ico} ${cap(v.one)}</button>`).join('')}
+        </div>
         <div class="row2">
           <button class="btn" data-act="swap">⇄ Inverser avec…</button>
           <button class="btn" data-act="replace">♻ Switch neuf</button>
@@ -647,13 +670,14 @@
       commit();
     },
     heat(btn) { state.heat = btn.dataset.v; lsSet(K.heat, state.heat); render(); },
+    kind(btn) { state.kind = btn.dataset.v; lsSet(K.kind, state.kind); render(); },
     more() { state.histLimit += 50; render(); },
     'close-sheet': () => $('#sheet').close(),
-    double() {
-      const code = state.sheetKey;
+    incident(btn) {
+      const code = state.sheetKey, k = btn.dataset.v;
       $('#sheet').close();
-      const ev = addEvent({ type: 'double', kb: st.kb.id, key: code });
-      toast(`⚡ Double input noté sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
+      const ev = addEvent({ type: k, kb: st.kb.id, key: code });
+      toast(`${KINDS[k].ico} ${cap(KINDS[k].one)} noté sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
       flash(code);
     },
     swap() {

@@ -8,6 +8,7 @@
   --key-edge: #d4d4dc;
   --key-text: #2c2c33;
   --heat: #ff3b30;
+  --skip: #0a7cff;
   --accent: #5b5bd6;
   --accent-text: #ffffff;
   --ok: #1a7f37;
@@ -26,6 +27,7 @@
     --key-edge: #1e1e24;
     --key-text: #dcdce3;
     --heat: #ff453a;
+    --skip: #409cff;
     --accent: #8484ff;
     --accent-text: #0e0e14;
     --ok: #4ac26b;
@@ -241,3 +243,15 @@ label input, label select {
 .legal h2 { margin: 24px 0 6px; }
 .legal a, .footer a { color: var(--accent); }
 .footer { text-align: center; font-size: .8rem; color: var(--muted); padding: 0 16px 90px; }
+
+/* ---------- Types d'incidents */
+#content[data-kind="skip"] { --heat: var(--skip); }
+.seg.kinds { display: flex; margin-bottom: 10px; }
+.seg.kinds button { flex: 1; padding: 7px 6px; font-size: .85rem; white-space: nowrap; }
+.btn.primary.k-double { background: var(--heat); color: #fff; }
+.btn.primary.k-skip { background: var(--skip); color: #fff; }
+.btn.primary.big.k-double, .btn.primary.big.k-skip { font-size: 1rem; padding: 8px; }
+.counts { display: flex; gap: 12px; font-size: 1.05rem; }
+.counts .k-double b { color: var(--heat); }
+.counts .k-skip b { color: var(--skip); }
+.mini .counts b { display: inline; font-size: 1.2rem; }
