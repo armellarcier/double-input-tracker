@@ -55,8 +55,8 @@ statistiques, classement et analyse sont calculés séparément pour chacun. L'h
 
 ### Test de frappe
 
-Après un nettoyage, une inversion ou un remplacement, recopiez un texte où la ou les touches concernées
-reviennent souvent (**🎯 Test de frappe** dans « Évolution » pour un texte général). La correction est
+Après un nettoyage, une inversion ou un remplacement, recopiez un texte où chaque touche concernée
+revient au moins 40 fois, nombre affiché en tête du test (**🎯 Test de frappe** dans « Évolution » pour un texte général). La correction est
 désactivée : un caractère en trop qui répète une lettre tapée juste avant (« coucouc » pour « coucou »)
 est proposé comme double input, un caractère absent comme appui manqué. Les fautes de frappe ordinaires
 (mauvaise touche) sont ignorées. Vous cochez ce qui vient du clavier, puis le test et ses incidents

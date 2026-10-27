@@ -759,8 +759,10 @@
     const t = state.test, d = $('#testDlg');
     const names = (codes) => codes.map((c) => `<b>${esc(st.name(c))}</b>`).join(', ');
     const off = t.keys.filter((c) => L.char(c, st.kb.variant) == null);
+    const aimed = t.keys.filter((c) => !off.includes(c));
+    const presses = (c) => `<b>${esc(st.name(c))}</b> ×${t.text.split(L.char(c, st.kb.variant)).length - 1}`;
     const head = `<div class="sheet-head"><div><h2>🎯 Test de frappe</h2>
-      <p class="muted small">${t.keys.length ? 'Touches ciblées : ' + names(t.keys) : 'Texte général : toutes les touches'}</p></div>
+      <p class="muted small">${aimed.length ? 'Appuis par touche ciblée : ' + aimed.map(presses).join(', ') : 'Texte général : toutes les touches'}</p></div>
       <button class="icon" data-act="close-test" aria-label="Fermer">✕</button></div>`;
     if (!t.done) {
       d.innerHTML = `<div class="sheet-body">${head}

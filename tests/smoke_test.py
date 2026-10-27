@@ -67,7 +67,7 @@ def run(page, name, size):
     page.click('.key[data-key=KeyE]')
     page.click('#sheet [data-act=test]')
     text = page.inner_text('#ttText')
-    assert text.count('e') >= 12, 'le texte doit contenir souvent la touche ciblée'
+    assert text.count('e') >= 40, 'le texte doit contenir souvent la touche ciblée'
     page.focus('#ttInput')
     page.keyboard.type(text[:20])
     page.keyboard.press('Backspace')

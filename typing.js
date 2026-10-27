@@ -39,31 +39,46 @@
   const pick = (a, rnd) => a[Math.floor(rnd() * a.length)];
   const count = (s, c) => s.split(c).length - 1;
 
-  // typeable : Set des caractères disponibles ; targets : caractères à faire taper souvent.
+  // Mot tiré au hasard, en favorisant ceux où c revient souvent (« kayak » plutôt que « ski »).
+  function dense(pool, c, rnd) {
+    const w = pool.map((x) => count(x, c) ** 2 / x.length);
+    let r = rnd() * w.reduce((a, b) => a + b, 0);
+    return pool[w.findIndex((v) => (r -= v) < 0)] ?? pool[pool.length - 1];
+  }
+
+  // Appuis visés par touche ciblée : assez pour qu'un test sans erreur veuille dire quelque chose.
+  const NEED = 40;
+
+  // typeable : Set des caractères disponibles ; targets : caractères à faire taper NEED fois au moins.
   // Un caractère absent de tous les mots (ponctuation…) est inséré seul.
   function text(typeable, targets, rnd = Math.random) {
     const ok = WORDS.filter((w) => [...w].every((c) => typeable.has(c)));
     const tg = targets.filter((c) => c !== ' ' && c !== '\n');
-    const lines = targets.includes('\n');
-    const NEED = 12;
+    const space = targets.includes(' '), lines = targets.includes('\n');
+    const per = lines ? 2 : Infinity;
+    // Espace ciblé : des mots courts, donc plus d'espaces pour la même longueur.
+    const filler = space ? ok.filter((w) => w.length <= 4) : ok;
     const seen = Object.fromEntries(tg.map((c) => [c, 0]));
     const words = [];
+    const seps = () => {
+      const n = Math.max(0, words.length - 1), nl = lines ? Math.floor(n / per) : 0;
+      return (!space || n - nl >= NEED) && (!lines || nl >= NEED);
+    };
     let len = 0;
-    while (words.length < 120 && (len < 220 || tg.some((c) => seen[c] < NEED))) {
+    while (words.length < 200 && (len < 220 || !seps() || tg.some((c) => seen[c] < NEED))) {
       const low = tg.slice().sort((a, b) => seen[a] - seen[b])[0];
       let w;
       if (low !== undefined && seen[low] < NEED && rnd() < 0.7) {
         const pool = ok.filter((x) => x.includes(low));
-        w = pool.length ? pick(pool, rnd) : low;
+        w = pool.length ? dense(pool, low, rnd) : low;
       } else {
-        w = pick(ok, rnd);
+        w = pick(filler, rnd);
       }
       if (w === words[words.length - 1] && ok.length > 1) continue;
       words.push(w);
       len += w.length + 1;
       for (const c of tg) seen[c] += count(w, c);
     }
-    const per = lines ? 3 : Infinity;
     return words.map((w, i) => (i && i % per === 0 ? '\n' : i ? ' ' : '') + w).join('');
   }
 
