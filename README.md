@@ -28,8 +28,10 @@ Google Drive**. Pensée pour le mobile, elle fonctionne aussi sur ordinateur.
 | Noter un double input            | Je touche la touche, puis **⚡ Double input**                            |
 | Noter un appui non enregistré    | Je touche la touche, puis **⊘ Appui manqué**                             |
 | Le faire depuis mon ordinateur   | J'appuie directement sur la touche physique : elle s'ouvre dans l'appli |
-| Indiquer que j'ai inversé deux switchs | Touche → **⇄ Inverser avec…** → je touche l'autre touche          |
-| Indiquer un switch remplacé par un neuf | Touche → **♻ Switch neuf** (son compteur repart de zéro)        |
+| Indiquer que j'ai inversé deux switchs | Touche → **⇄ Inverser…** → je touche l'autre touche          |
+| Indiquer un switch remplacé par un neuf | Touche → **♻ Neuf** (son compteur repart de zéro)               |
+| Indiquer que j'ai nettoyé un switch | Touche → **🧽 Nettoyé**                                              |
+| Repérer un autre événement (firmware, lubrification…) | **＋ Noter un événement** dans « Évolution »       |
 | Corriger une erreur              | **Annuler** dans la notification, ou ✕ dans l'historique                 |
 
 ### Lire les résultats
@@ -46,6 +48,9 @@ statistiques, classement et analyse sont calculés séparément pour chacun. L'h
   - Pour un appui manqué, pensez aussi à un switch mal enfoncé dans son socket ou à un stabilisateur qui accroche.
   - **« suit la position »** → regardez plutôt la soudure, le socket hotswap, le PCB ou le debounce du firmware.
   - Une durée courte n'est pas encore significative : comparez les taux par semaine.
+- **Évolution** : courbe cumulée des incidents avec des repères pour chaque nettoyage, remplacement et
+  événement noté, et le taux par semaine avant / après chacun. La fiche d'une touche montre la même
+  courbe pour le switch installé (repères : nettoyages et inversions).
 
 ### Vos données
 

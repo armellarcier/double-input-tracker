@@ -255,3 +255,21 @@ label input, label select {
 .counts .k-double b { color: var(--heat); }
 .counts .k-skip b { color: var(--skip); }
 .mini .counts b { display: inline; font-size: 1.2rem; }
+
+/* ---------- Graphiques d'évolution */
+.chart { --c: var(--heat); margin: 6px 0 10px; }
+.chart.k-skip { --c: var(--skip); }
+.plot { position: relative; height: 130px; margin: 22px 10px 0; border-bottom: 1px solid var(--line); }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plot .line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.plot .area { fill: color-mix(in srgb, var(--c) 12%, transparent); }
+.plot .mark { position: absolute; top: -20px; bottom: 0; width: 0; border-left: 1px dashed var(--muted); cursor: help; }
+.plot .mark span {
+  position: absolute; top: 0; left: 0; transform: translateX(-50%);
+  font-size: 13px; line-height: 18px; background: var(--card);
+}
+.plot .ymax { position: absolute; top: -2px; left: 4px; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.xaxis { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin: 4px 10px 0; }
+.compare td { vertical-align: top; }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.row3 .btn { padding: 8px 4px; }

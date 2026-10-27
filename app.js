@@ -17,6 +17,8 @@
     skip: { ico: '⊘', one: 'appui manqué', many: 'appuis manqués', title: 'Appuis manqués', col: 'Manqués' },
   };
   const cap = (t) => t[0].toUpperCase() + t.slice(1);
+  // Interventions affichées comme repères sur les graphiques.
+  const MARKS = { clean: '🧽', replace: '♻', swap: '⇄', note: '📝' };
 
   // ---------- Utilitaires
   const $ = (s, el = document) => el.querySelector(s);
@@ -29,6 +31,7 @@
     try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ }
   }
   const dtf = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  const dday = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
   const rtf = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
   function ago(ts) {
     const s = (ts - Date.now()) / 1000, a = Math.abs(s);
@@ -46,6 +49,7 @@
     return d.toFixed(d < 10 ? 1 : 0).replace('.', ',') + ' j';
   }
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+  const rate = (n, t) => (t >= 86400000 ? ((n / t) * 7 * 86400000).toFixed(1).replace('.', ',') : '—');
 
   // ---------- Données
   // Tout est stocké sous forme d'enregistrements { id, u (date de modif) } fusionnables :
@@ -111,11 +115,12 @@
     const keyCount = {};
     const swAt = {};       // id d'événement -> switch concerné
     const replaced = {};   // id d'événement "replace" -> switch retiré
+    const swapped = {};    // id d'événement "swap" -> [switch a, switch b]
     let newN = 0;
 
     for (const k of layout.keys) {
       pos[k.code] = k.code;
-      switches[k.code] = { id: k.code, origin: k.code, label: `« ${name(k.code)} »`, isNew: false, removed: false, count: 0, byPos: {}, time: {} };
+      switches[k.code] = { id: k.code, origin: k.code, label: `« ${name(k.code)} »`, since: kb.createdAt, isNew: false, removed: false, count: 0, byPos: {}, time: {} };
       seg[k.code] = { pos: k.code, since: kb.createdAt };
     }
     const close = (id, t) => {
@@ -141,8 +146,11 @@
         const sa = pos[e.a], sb = pos[e.b];
         close(sa, e.ts); close(sb, e.ts);
         pos[e.a] = sb; pos[e.b] = sa;
+        swapped[e.id] = [sa, sb];
         seg[sb] = { pos: e.a, since: e.ts };
         seg[sa] = { pos: e.b, since: e.ts };
+      } else if (e.type === 'clean') {
+        if (e.key in pos) swAt[e.id] = pos[e.key];
       } else if (e.type === 'replace') {
         if (!(e.key in pos)) continue;
         const old = pos[e.key];
@@ -151,7 +159,7 @@
         replaced[e.id] = old;
         const id = 'new:' + e.id;
         newN++;
-        switches[id] = { id, origin: null, label: `neuf n°${newN}`, isNew: true, removed: false, count: 0, byPos: {}, time: {} };
+        switches[id] = { id, origin: null, label: `neuf n°${newN}`, since: e.ts, isNew: true, removed: false, count: 0, byPos: {}, time: {} };
         pos[e.key] = id;
         seg[id] = { pos: e.key, since: e.ts };
       }
@@ -160,7 +168,7 @@
     for (const id of Object.keys(seg)) close(id, now);
 
     const incidents = events.filter((e) => e.type === kind && swAt[e.id]);
-    return { kb, kind, layout, name, pos, switches, keyCount, swAt, replaced, events, incidents };
+    return { kb, kind, layout, name, pos, switches, keyCount, swAt, replaced, swapped, events, incidents };
   }
 
   // ---------- Google : authentification
@@ -324,7 +332,7 @@
           <button class="btn primary" data-act="new-kb">Créer un clavier</button>
         </div>`;
     } else {
-      content.innerHTML = boardHtml() + statsHtml() + historyHtml();
+      content.innerHTML = boardHtml() + statsHtml() + trendHtml() + historyHtml();
       drawKeyboard();
     }
     renderSwapBar();
@@ -479,7 +487,6 @@
   function analysisHtml() {
     const sws = Object.values(st.switches);
     const spent = (s) => Object.entries(s.time).filter(([, t]) => t > 0);
-    const rate = (n, t) => (t >= 86400000 ? ((n / t) * 7 * 86400000).toFixed(1).replace('.', ',') : '—');
     const moved = sws.filter((s) => spent(s).length > 1 && (s.count > 0 || spent(s).some(([p]) => st.keyCount[p])));
     const hosts = {};
     for (const s of sws) for (const [p, t] of spent(s)) (hosts[p] ||= []).push({ s, t, n: s.byPos[p] || 0 });
@@ -513,6 +520,64 @@
       ${movedHtml}${posHtml}</section>`;
   }
 
+  // ---------- Graphiques : courbe cumulée des incidents + repères d'intervention
+  function markOf(e) {
+    const n = (c) => st.name(c);
+    const txt = e.type === 'clean' ? `Nettoyage ${n(e.key)}`
+      : e.type === 'replace' ? `Switch neuf sur ${n(e.key)}`
+      : e.type === 'swap' ? `Inversion ${n(e.a)} ↔ ${n(e.b)}`
+      : e.text || 'Événement';
+    return { ts: e.ts, ico: MARKS[e.type], txt };
+  }
+
+  function chartHtml(hits, marks, from) {
+    const span = Math.max(1, Date.now() - from);
+    const x = (t) => Math.min(1000, Math.max(0, ((t - from) / span) * 1000));
+    const N = Math.max(1, hits.length);
+    const y = (n) => (100 - (n / N) * 92).toFixed(1);
+    let d = `M0 ${y(0)}`;
+    hits.forEach((t, i) => { d += `H${x(t).toFixed(1)}V${y(i + 1)}`; });
+    d += 'H1000';
+    return `<div class="chart k-${state.kind}">
+      <div class="plot">
+        <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+          <path class="area" d="${d}V100H0Z"/><path class="line" d="${d}"/></svg>
+        ${marks.map((m) => `<div class="mark" style="left:${(x(m.ts) / 10).toFixed(2)}%" title="${esc(m.txt)} · ${dtf.format(m.ts)}"><span>${m.ico}</span></div>`).join('')}
+        <span class="ymax">${hits.length}</span>
+      </div>
+      <div class="xaxis"><span>${dday.format(from)}</span><span>aujourd'hui</span></div>
+    </div>`;
+  }
+
+  // Taux par semaine entre chaque repère et le précédent / le suivant.
+  function compareHtml(hits, marks, from) {
+    if (!marks.length) return '';
+    const seg = (a, b) => {
+      const n = hits.filter((t) => t >= a && t < b).length;
+      return `<b>${rate(n, b - a)}</b><div class="muted small">${n} en ${dur(b - a)}</div>`;
+    };
+    const rows = marks.map((m, i) => `<tr><td>${m.ico} ${esc(m.txt)}<div class="muted small">${dday.format(m.ts)}</div></td>
+      <td class="num">${seg(i ? marks[i - 1].ts : from, m.ts)}</td>
+      <td class="num">${seg(m.ts, marks[i + 1]?.ts ?? Date.now())}</td></tr>`).slice(-6).join('');
+    return `<table class="compare"><tr><th>Intervention</th><th class="num">Avant / sem.</th><th class="num">Après / sem.</th></tr>${rows}</table>`;
+  }
+
+  function trendHtml() {
+    const kd = KINDS[state.kind];
+    const hits = st.incidents.map((e) => e.ts);
+    const marks = st.events.filter((e) => e.type === 'clean' || e.type === 'replace' || e.type === 'note').map(markOf);
+    const btn = '<button class="btn" data-act="note">＋ Noter un événement</button>';
+    if (!hits.length && !marks.length) {
+      return `<section class="card"><h2>Évolution</h2>
+        <p class="explain">Nettoyez un switch (touche → « Nettoyé ») ou notez un événement (firmware, lubrification…)
+        pour comparer le nombre de ${kd.many} avant et après.</p>${btn}</section>`;
+    }
+    return `<section class="card"><h2>Évolution des ${kd.many}</h2>
+      <p class="explain">Total cumulé : plus la courbe monte vite, plus il y en a. Les repères marquent nettoyages,
+      remplacements et événements notés. Une durée inférieure à un jour n'affiche pas de taux.</p>
+      ${chartHtml(hits, marks, st.kb.createdAt)}${compareHtml(hits, marks, st.kb.createdAt)}${btn}</section>`;
+  }
+
   function eventHtml(e) {
     const n = (c) => `<b>${esc(st.name(c))}</b>`;
     let ico, txt;
@@ -521,6 +586,11 @@
       ico = KINDS[e.type].ico; txt = `${cap(KINDS[e.type].one)} sur ${n(e.key)} <span class="muted small">switch ${esc(s?.label || '?')}</span>`;
     } else if (e.type === 'swap') {
       ico = '⇄'; txt = `Inversion ${n(e.a)} ↔ ${n(e.b)}`;
+    } else if (e.type === 'clean') {
+      const s = st.switches[st.swAt[e.id]];
+      ico = MARKS.clean; txt = `Switch nettoyé sur ${n(e.key)} <span class="muted small">switch ${esc(s?.label || '?')}</span>`;
+    } else if (e.type === 'note') {
+      ico = MARKS.note; txt = esc(e.text || 'Événement');
     } else if (e.type === 'replace') {
       const old = st.switches[st.replaced[e.id]];
       ico = '♻'; txt = `Switch neuf sur ${n(e.key)}${old ? ` <span class="muted small">remplace ${esc(old.label)}</span>` : ''}`;
@@ -556,6 +626,12 @@
       const all = st.events.filter((e) => e.type === k && st.swAt[e.id]);
       return { pos: all.filter((e) => e.key === code).length, sw: all.filter((e) => st.swAt[e.id] === sw.id).length };
     };
+    const hits = st.incidents.filter((e) => st.swAt[e.id] === sw.id).map((e) => e.ts);
+    const marks = st.events.filter((e) => (e.type === 'clean' && st.swAt[e.id] === sw.id)
+      || (e.type === 'swap' && st.swapped[e.id]?.includes(sw.id))).map(markOf);
+    const trend = hits.length || marks.length
+      ? `<div><h3 style="margin-top:4px">${cap(KINDS[state.kind].many)} du switch ${esc(sw.label)}</h3>
+        ${chartHtml(hits, marks, sw.since)}${compareHtml(hits, marks, sw.since)}</div>` : '';
     const line = (f) => Object.entries(KINDS).map(([k, v]) => `<span class="k-${k}">${v.ico} <b>${counts(k)[f]}</b></span>`).join(' ');
     $('#sheet').innerHTML = `
       <div class="sheet-body">
@@ -571,10 +647,12 @@
         <div class="row2">
           ${Object.entries(KINDS).map(([k, v]) => `<button class="btn primary big k-${k}" data-act="incident" data-v="${k}">${v.ico} ${cap(v.one)}</button>`).join('')}
         </div>
-        <div class="row2">
-          <button class="btn" data-act="swap">⇄ Inverser avec…</button>
-          <button class="btn" data-act="replace">♻ Switch neuf</button>
+        <div class="row3">
+          <button class="btn" data-act="clean">🧽 Nettoyé</button>
+          <button class="btn" data-act="swap">⇄ Inverser…</button>
+          <button class="btn" data-act="replace">♻ Neuf</button>
         </div>
+        ${trend}
         ${evs.length ? `<div><h3 style="margin-top:4px">Historique</h3><ul class="events">${evs.map(eventHtml).join('')}</ul></div>` : ''}
       </div>`;
   }
@@ -692,6 +770,19 @@
       $('#sheet').close();
       const ev = addEvent({ type: 'replace', kb: st.kb.id, key: code });
       toast(`♻ Switch neuf installé sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
+    },
+    clean() {
+      const code = state.sheetKey;
+      $('#sheet').close();
+      const ev = addEvent({ type: 'clean', kb: st.kb.id, key: code });
+      toast(`🧽 Nettoyage noté sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
+      flash(code);
+    },
+    note() {
+      const text = prompt('Événement à repérer sur le graphique\n(ex. firmware : debounce 8 ms, lubrification, nettoyage complet…)');
+      if (!text || !text.trim()) return;
+      const ev = addEvent({ type: 'note', kb: st.kb.id, text: text.trim().slice(0, 120) });
+      toast(`📝 Événement noté`, () => patch('events', ev.id, { deleted: true }));
     },
     'del-event'(btn) {
       const id = btn.dataset.id;

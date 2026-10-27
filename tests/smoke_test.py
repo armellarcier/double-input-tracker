@@ -48,6 +48,19 @@ def run(page, name, size):
     assert '3' in page.inner_text('.stats .stat:first-child'), 'total des doubles inputs'
     assert 'suit le switch' in page.inner_text('#content'), "l'analyse doit détecter que le problème suit le switch"
 
+    # Nettoyage du switch de E (switch d'origine de Q) et événement libre : repères et comparaison avant/après.
+    page.click('.key[data-key=KeyE]')
+    page.click('[data-act=clean]')
+    page.once('dialog', lambda d: d.accept('Firmware : debounce 8 ms'))
+    page.click('[data-act=note]')
+    page.wait_for_timeout(200)
+    assert page.locator('#content .chart .mark').count() == 2, 'repères nettoyage + événement'
+    assert 'Firmware' in page.inner_text('.compare'), 'comparaison avant/après'
+    page.click('.key[data-key=KeyE]')
+    assert page.locator('#sheet .chart .mark').count() == 2, 'repères du switch : inversion + nettoyage'
+    page.screenshot(path=str(OUT / f'{name}-sheet.png'))
+    page.click('[data-act=close-sheet]')
+
     page.click('[data-act=kind][data-v=skip]')
     page.wait_for_timeout(200)
     assert '1' in page.inner_text('.stats .stat:first-child'), 'total des appuis manqués'
