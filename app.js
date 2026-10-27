@@ -58,7 +58,7 @@
   const normalize = (d) => ({ v: 1, keyboards: d?.keyboards || {}, events: d?.events || {} });
   let data = normalize(lsGet(K.data));
 
-  const state = { kbId: lsGet(K.kb), heat: lsGet(K.heat, 'position'), kind: KINDS[lsGet(K.kind)] ? lsGet(K.kind) : 'double', swapFrom: null, sheetKey: null, histLimit: 30 };
+  const state = { kbId: lsGet(K.kb), heat: lsGet(K.heat, 'position'), kind: KINDS[lsGet(K.kind)] ? lsGet(K.kind) : 'double', swapFrom: null, sheetKey: null, histLimit: 30, test: null };
 
   const keyboards = () => Object.values(data.keyboards).filter((k) => !k.deleted).sort((a, b) => a.createdAt - b.createdAt);
   function currentKb() {
@@ -577,7 +577,8 @@
   function trendHtml() {
     const series = seriesOf(() => true);
     const marks = st.events.filter((e) => e.type === 'clean' || e.type === 'replace' || e.type === 'note').map(markOf);
-    const btn = '<button class="btn" data-act="note">＋ Noter un événement</button>';
+    const btn = '<div class="btns"><button class="btn" data-act="note">＋ Noter un événement</button>'
+      + '<button class="btn" data-act="test" data-keys="">🎯 Test de frappe</button></div>';
     if (!series.some((s) => s.hits.length) && !marks.length) {
       return `<section class="card"><h2>Évolution</h2>
         <p class="explain">Nettoyez un switch (touche → « Nettoyé ») ou notez un événement (firmware, lubrification…)
@@ -602,6 +603,8 @@
       ico = MARKS.clean; txt = `Switch nettoyé sur ${n(e.key)} <span class="muted small">switch ${esc(s?.label || '?')}</span>`;
     } else if (e.type === 'note') {
       ico = MARKS.note; txt = esc(e.text || 'Événement');
+    } else if (e.type === 'test') {
+      ico = '🎯'; txt = `Test de frappe${e.keys?.length ? ' sur ' + e.keys.map(n).join(', ') : ''} : ${e.n} caractères, ${plural(e.found, 'incident', 'incidents')}`;
     } else if (e.type === 'replace') {
       const old = st.switches[st.replaced[e.id]];
       ico = '♻'; txt = `Switch neuf sur ${n(e.key)}${old ? ` <span class="muted small">remplace ${esc(old.label)}</span>` : ''}`;
@@ -631,7 +634,7 @@
     if (!st || !(code in st.pos)) return $('#sheet').close();
     const sw = st.switches[st.pos[code]];
     const moved = !sw.isNew && sw.origin !== code ? ` <span class="tag">déplacé</span>` : '';
-    const evs = st.events.filter((e) => e.key === code || e.a === code || e.b === code).reverse().slice(0, 8);
+    const evs = st.events.filter((e) => e.key === code || e.a === code || e.b === code || e.keys?.includes(code)).reverse().slice(0, 8);
     // Compteurs par type : position actuelle et switch installé.
     const counts = (k) => {
       const all = st.events.filter((e) => e.type === k && st.swAt[e.id]);
@@ -663,6 +666,7 @@
           <button class="btn" data-act="swap">⇄ Inverser…</button>
           <button class="btn" data-act="replace">♻ Neuf</button>
         </div>
+        <button class="btn" data-act="test">🎯 Tester la frappe</button>
         ${trend}
         ${evs.length ? `<div><h3 style="margin-top:4px">Historique</h3><ul class="events">${evs.map(eventHtml).join('')}</ul></div>` : ''}
       </div>`;
@@ -681,15 +685,124 @@
     if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
   }
 
+  // ---------- Test de frappe (génération du texte et détection dans typing.js)
+  const T = window.Typing;
+  let testTimer;
+  const vis = (c) => (c === ' ' ? '␣' : c === '\n' ? '↵' : c);
+
+  // Caractère tapé -> position. Les touches ciblées l'emportent (ex. chiffres du pavé numérique).
+  function charMap(targets) {
+    const m = {};
+    const codes = st.layout.keys.map((k) => k.code).sort((a, b) => a.startsWith('Numpad') - b.startsWith('Numpad'));
+    for (const code of [...codes, ...targets]) {
+      const c = L.char(code, st.kb.variant);
+      if (c && (!(c in m) || targets.includes(code))) m[c] = code;
+    }
+    return m;
+  }
+
+  function openTest(keys) {
+    const map = charMap(keys);
+    const chars = keys.map((c) => L.char(c, st.kb.variant)).filter((c) => c != null);
+    state.test = { keys, map, text: T.text(new Set(Object.keys(map)), chars), typed: '', done: false };
+    renderTest();
+    const d = $('#testDlg');
+    if (!d.open) d.showModal();
+    $('#ttInput').focus();
+  }
+
+  function testResult() {
+    const t = state.test;
+    const { ops, end } = T.align(t.text, t.typed.toLowerCase());
+    const found = T.findings(t.text, ops).map((f) => ({ ...f, key: t.map[f.c] })).filter((f) => f.key);
+    return { ops, end, found, typos: ops.filter((o) => o.op === 'sub').length };
+  }
+
+  function testTextHtml(r) {
+    const plain = (c) => (c === '\n' ? '↵\n' : esc(c));
+    const body = r.ops.map((o) => o.op === '=' ? plain(o.c)
+      : o.op === 'ins' ? `<span class="extra">${esc(vis(o.t))}</span>`
+      : o.op === 'del' ? `<span class="miss">${esc(vis(o.c))}</span>`
+      : `<span class="sub" title="Tapé : ${esc(vis(o.t))}">${esc(vis(o.c))}</span>`).join('');
+    return `<span class="done">${body}</span><span class="cur"></span>${[...state.test.text.slice(r.end)].map(plain).join('')}`;
+  }
+
+  function updateTest() {
+    const r = testResult();
+    const n = (k) => r.found.filter((f) => f.kind === k && f.sure).length;
+    $('#ttText').innerHTML = testTextHtml(r);
+    $('#ttLive').innerHTML = `<span>${r.end} / ${state.test.text.length}</span>`
+      + Object.entries(KINDS).map(([k, v]) => `<span class="k-${k}">${v.ico} <b>${n(k)}</b> ${v.many}</span>`).join('');
+    $('#ttText .cur').scrollIntoView({ block: 'nearest' });
+    return r;
+  }
+
+  function finishTest() {
+    const t = state.test;
+    clearTimeout(testTimer);
+    if (!t || t.done) return;
+    if (!t.typed) return $('#testDlg').close();
+    const r = testResult();
+    t.result = { ...r, n: t.typed.length, found: r.found.map((f) => ({ ...f, on: f.sure })) };
+    t.done = true;
+    renderTest();
+  }
+
+  function ctxHtml(f) {
+    const E = state.test.text, v = (s) => esc(s.replace(/\n/g, ' '));
+    const c = f.kind === 'double' ? f.c : E[f.i];
+    return `…${v(E.slice(Math.max(0, f.i - 8), f.i))}<mark class="k-${f.kind}">${esc(vis(c))}</mark>`
+      + `${v(E.slice(f.kind === 'double' ? f.i : f.i + 1, f.i + 8))}…`;
+  }
+
+  function renderTest() {
+    const t = state.test, d = $('#testDlg');
+    const names = (codes) => codes.map((c) => `<b>${esc(st.name(c))}</b>`).join(', ');
+    const off = t.keys.filter((c) => L.char(c, st.kb.variant) == null);
+    const head = `<div class="sheet-head"><div><h2>🎯 Test de frappe</h2>
+      <p class="muted small">${t.keys.length ? 'Touches ciblées : ' + names(t.keys) : 'Texte général : toutes les touches'}</p></div>
+      <button class="icon" data-act="close-test" aria-label="Fermer">✕</button></div>`;
+    if (!t.done) {
+      d.innerHTML = `<div class="sheet-body">${head}
+        ${off.length ? `<p class="explain">Pas de caractère à taper, donc non testé : ${names(off)}.</p>` : ''}
+        <p class="explain">Recopiez le texte sur le clavier, à votre rythme habituel. Sans correction : chaque erreur
+        sert à repérer un double input (rouge) ou un appui manqué (bleu).</p>
+        <div class="tt-text" id="ttText"></div>
+        <textarea id="ttInput" rows="3" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Tapez ici…"></textarea>
+        <div class="tt-live muted small" id="ttLive"></div>
+        <div class="row2"><button class="btn" data-act="test-new">↻ Autre texte</button><button class="btn primary" data-act="test-end">Terminer</button></div>
+      </div>`;
+      $('#ttInput').value = t.typed;
+      updateTest();
+      return;
+    }
+    const r = t.result;
+    const on = r.found.filter((f) => f.on).length;
+    const items = r.found.map((f, i) => `<li><label class="sugg"><input type="checkbox" data-i="${i}" ${f.on ? 'checked' : ''}>
+      <span>${KINDS[f.kind].ico} ${cap(KINDS[f.kind].one)} sur <b>${esc(st.name(f.key))}</b>
+      ${f.sure ? '' : '<span class="muted small">· caractère en trop, sans répétition proche</span>'}
+      <span class="ctx">${ctxHtml(f)}</span></span></label></li>`).join('');
+    d.innerHTML = `<div class="sheet-body">${head}
+      <div class="tt-text">${testTextHtml(r)}</div>
+      <p class="muted small">${t.typed.length} caractères tapés${r.typos ? ` · ${plural(r.typos, 'faute de frappe ignorée', 'fautes de frappe ignorées')} (mauvaise touche)` : ''}</p>
+      ${r.found.length
+        ? `<p class="explain">Décochez les erreurs qui viennent de vous plutôt que du clavier.</p><ul class="tt-sugg">${items}</ul>`
+        : `<p><b>✓ Aucun double input ni appui manqué détecté.</b></p>`}
+      <div class="row2"><button class="btn" data-act="test-new">↻ Refaire un test</button>
+        <button class="btn primary" data-act="test-save">Enregistrer${on ? ` (${plural(on, 'incident', 'incidents')})` : ' le test'}</button></div>
+    </div>`;
+  }
+
   // ---------- Toast
   let toastTimer;
-  function toast(msg, undo) {
+  function toast(msg, undo, test) {
     const el = $('#toast');
-    el.innerHTML = `<span>${msg}</span>${undo ? '<button data-act="undo">Annuler</button>' : ''}`;
+    el.innerHTML = `<span>${msg}</span>${test ? `<button data-act="test" data-keys="${esc(test.join(' '))}">Tester</button>` : ''}`
+      + `${undo ? '<button data-act="undo">Annuler</button>' : ''}`;
     el.hidden = false;
     el._undo = undo;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; el._undo = null; }, undo ? 6000 : 4000);
+    toastTimer = setTimeout(() => { el.hidden = true; el._undo = null; }, test ? 10000 : undo ? 6000 : 4000);
   }
 
   // ---------- Actions
@@ -699,7 +812,7 @@
       state.swapFrom = null;
       if (a === code) { render(); return; }
       const ev = addEvent({ type: 'swap', kb: st.kb.id, a, b: code });
-      toast(`Switchs de ${esc(st.name(a))} et ${esc(st.name(code))} inversés`, () => patch('events', ev.id, { deleted: true }));
+      toast(`Switchs de ${esc(st.name(a))} et ${esc(st.name(code))} inversés`, () => patch('events', ev.id, { deleted: true }), [a, code]);
       flash(a); flash(code);
       return;
     }
@@ -780,13 +893,13 @@
       if (!confirm(`Remplacer le switch de ${st.name(code)} par un switch neuf ?\nSon compteur repartira de zéro.`)) return;
       $('#sheet').close();
       const ev = addEvent({ type: 'replace', kb: st.kb.id, key: code });
-      toast(`♻ Switch neuf installé sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
+      toast(`♻ Switch neuf installé sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }), [code]);
     },
     clean() {
       const code = state.sheetKey;
       $('#sheet').close();
       const ev = addEvent({ type: 'clean', kb: st.kb.id, key: code });
-      toast(`🧽 Nettoyage noté sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }));
+      toast(`🧽 Nettoyage noté sur ${esc(st.name(code))}`, () => patch('events', ev.id, { deleted: true }), [code]);
       flash(code);
     },
     note() {
@@ -794,6 +907,30 @@
       if (!text || !text.trim()) return;
       const ev = addEvent({ type: 'note', kb: st.kb.id, text: text.trim().slice(0, 120) });
       toast(`📝 Événement noté`, () => patch('events', ev.id, { deleted: true }));
+    },
+    test(btn) {
+      const keys = btn.dataset.keys != null ? btn.dataset.keys.split(' ').filter(Boolean) : [state.sheetKey];
+      $('#sheet').close();
+      $('#toast').hidden = true;
+      openTest(keys);
+    },
+    'test-new'() { openTest(state.test.keys); },
+    'test-end': finishTest,
+    'close-test': () => $('#testDlg').close(),
+    'test-save'() {
+      const t = state.test, sel = t.result.found.filter((f) => f.on);
+      const now = Date.now(), ids = [];
+      const put = (e) => { const ev = { id: uid(), ts: now, kb: st.kb.id, ...e, u: now }; data.events[ev.id] = ev; ids.push(ev.id); };
+      for (const f of sel) put({ type: f.kind, key: f.key });
+      put({ type: 'test', keys: t.keys, n: t.result.n, found: sel.length });
+      $('#testDlg').close();
+      commit();
+      toast(`🎯 Test enregistré${sel.length ? ` : ${plural(sel.length, 'incident noté', 'incidents notés')}` : ', aucun incident'}`, () => {
+        const at = Date.now();
+        for (const id of ids) data.events[id] = { ...data.events[id], deleted: true, u: at };
+        commit();
+      });
+      for (const f of sel) flash(f.key);
     },
     'del-event'(btn) {
       const id = btn.dataset.id;
@@ -816,6 +953,10 @@
   });
 
   document.addEventListener('change', (e) => {
+    if (e.target.closest('#testDlg') && e.target.dataset.i) {
+      state.test.result.found[e.target.dataset.i].on = e.target.checked;
+      return renderTest();
+    }
     if (e.target.id === 'kbSelect') {
       state.kbId = e.target.value; lsSet(K.kb, state.kbId);
       state.swapFrom = null; state.histLimit = 30;
@@ -825,9 +966,27 @@
 
   // Fermer une feuille en touchant le fond
   for (const d of document.querySelectorAll('dialog')) {
-    d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+    // Sauf le test : un clic à côté ferait perdre la saisie.
+    d.addEventListener('click', (e) => { if (e.target === d && d.id !== 'testDlg') d.close(); });
   }
   $('#sheet').addEventListener('close', () => { state.sheetKey = null; });
+
+  // Test de frappe : pas de correction (elle effacerait les doubles inputs), fin automatique au dernier caractère.
+  const testDlg = $('#testDlg');
+  testDlg.addEventListener('close', () => { state.test = null; clearTimeout(testTimer); });
+  testDlg.addEventListener('beforeinput', (e) => {
+    if (e.target.id !== 'ttInput' || !/^(delete|history)|FromPaste|FromDrop|ReplacementText/.test(e.inputType)) return;
+    e.preventDefault();
+    e.target.classList.remove('nope'); void e.target.offsetWidth; e.target.classList.add('nope');
+  });
+  testDlg.addEventListener('input', (e) => {
+    if (e.target.id !== 'ttInput' || !state.test || state.test.done) return;
+    state.test.typed = e.target.value;
+    const r = updateTest();
+    clearTimeout(testTimer);
+    // Délai : laisse le temps à un éventuel double input sur le dernier caractère.
+    if (r.end === state.test.text.length && r.ops[r.ops.length - 1]?.op === '=') testTimer = setTimeout(finishTest, 800);
+  });
 
   $('#newKb').addEventListener('close', () => {
     const d = $('#newKb'), f = $('#newKbForm');

@@ -279,3 +279,34 @@ label input, label select {
 .compare td.num div { white-space: nowrap; }
 .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .row3 .btn { padding: 8px 4px; }
+
+/* ---------- Test de frappe */
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.tt-text {
+  font: 1.05rem/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted);
+  background: var(--bg); border-radius: 10px; padding: 10px 12px; max-height: 38vh; overflow-y: auto;
+}
+.tt-text .done { color: var(--text); }
+.tt-text .extra, .tt-text .miss { border-radius: 3px; font-weight: 700; }
+.tt-text .extra { color: var(--double); background: color-mix(in srgb, var(--double) 22%, transparent); }
+.tt-text .miss { color: var(--skip); background: color-mix(in srgb, var(--skip) 22%, transparent); }
+.tt-text .sub { text-decoration: underline wavy var(--warn); }
+.tt-text .cur { border-left: 2px solid var(--accent); margin-right: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { border-color: transparent; } }
+#ttInput {
+  width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 10px; background: var(--bg); color: var(--text); font: 1rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#ttInput.nope { animation: nope .3s; border-color: var(--warn); }
+@keyframes nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.tt-live { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.tt-live .k-double b, .ctx mark.k-double { color: var(--double); }
+.tt-live .k-skip b, .ctx mark.k-skip { color: var(--skip); }
+.tt-sugg { list-style: none; margin: 0; padding: 0; }
+.tt-sugg li { border-top: 1px solid var(--line); }
+.tt-sugg li:first-child { border-top: 0; }
+label.sugg { flex-direction: row; align-items: flex-start; gap: 10px; padding: 8px 0; color: var(--text); font-size: .95rem; cursor: pointer; }
+label.sugg input { flex: none; width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; }
+.ctx { display: block; font: .85rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.ctx mark { background: var(--key); font-weight: 700; border-radius: 3px; padding: 0 1px; }

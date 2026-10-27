@@ -63,9 +63,27 @@ def run(page, name, size):
     page.screenshot(path=str(OUT / f'{name}-sheet.png'))
     page.click('[data-act=close-sheet]')
 
+    # Test de frappe ciblé sur E : un caractère doublé et un caractère sauté doivent être proposés.
+    page.click('.key[data-key=KeyE]')
+    page.click('#sheet [data-act=test]')
+    text = page.inner_text('#ttText')
+    assert text.count('e') >= 12, 'le texte doit contenir souvent la touche ciblée'
+    page.focus('#ttInput')
+    page.keyboard.type(text[:20])
+    page.keyboard.press('Backspace')
+    assert page.input_value('#ttInput') == text[:20], 'la correction doit être bloquée'
+    page.keyboard.type(text[19] + text[20:40] + text[41:])
+    page.wait_for_selector('.tt-sugg', timeout=3000)
+    sugg = page.inner_text('.tt-sugg')
+    assert 'Double input' in sugg and 'Appui manqué' in sugg, sugg
+    page.screenshot(path=str(OUT / f'{name}-test.png'))
+    page.click('[data-act=test-save]')
+    page.wait_for_timeout(200)
+    assert 'Test de frappe' in page.inner_text('.events'), "le test doit apparaître dans l'historique"
+
     page.click('[data-act=kind][data-v=skip]')
     page.wait_for_timeout(200)
-    assert '1' in page.inner_text('.stats .stat:first-child'), 'total des appuis manqués'
+    assert '2' in page.inner_text('.stats .stat:first-child'), 'total des appuis manqués (dont celui du test)'
 
     page.screenshot(path=str(OUT / f'{name}.png'), full_page=True)
     assert not errors, errors

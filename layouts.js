@@ -131,5 +131,15 @@
   const name = (code, variant) =>
     VARIANTS[variant]?.full[code] ?? FULL[code] ?? label(code, variant).split('\n').reverse().join(' ');
 
-  window.Layouts = { SIZES, VARIANTS, build, label, name };
+  // Caractère produit sans modificateur, ou null (touche de commande, touche morte) : sert au test de frappe.
+  const TYPING = /^(Key|Digit|Numpad(\d|Decimal|Divide|Multiply|Subtract|Add)$|Minus|Equal|Bracket|Backslash|Semicolon|Quote|Backquote|IntlBackslash|Comma|Period|Slash)/;
+  function char(code, variant) {
+    if (code === 'Space') return ' ';
+    if (code === 'Enter' || code === 'NumpadEnter') return '\n';
+    if (!TYPING.test(code)) return null;
+    const c = label(code, variant).split('\n').pop().toLowerCase();
+    return c.length === 1 && c !== '^' ? c : null;
+  }
+
+  window.Layouts = { SIZES, VARIANTS, build, label, name, char };
 })();

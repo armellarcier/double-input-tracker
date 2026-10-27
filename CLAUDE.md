@@ -17,6 +17,8 @@ mécanique. Données dans le Google Drive de l'utilisateur. En ligne : https://a
 
 - `app.js` : état, rendu, actions, auth GIS, synchro Drive.
 - `layouts.js` : formats de clavier (mini-syntaxe documentée en tête de fichier) et libellés par disposition (`VARIANTS`).
+  `char()` donne le caractère tapé par une touche (test de frappe).
+- `typing.js` : test de frappe, logique pure (génération du texte, alignement saisie/texte, détection) ; l'interface est dans `app.js`.
 - `style.css` : tokens de couleur sur `:root`, thème sombre via `prefers-color-scheme`.
 - `privacy.html`, `terms.html` : pages exigées par l'écran de consentement OAuth ; à mettre à jour si les données traitées changent.
 

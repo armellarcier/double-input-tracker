@@ -32,6 +32,7 @@ Google Drive**. Pensée pour le mobile, elle fonctionne aussi sur ordinateur.
 | Indiquer un switch remplacé par un neuf | Touche → **♻ Neuf** (son compteur repart de zéro)               |
 | Indiquer que j'ai nettoyé un switch | Touche → **🧽 Nettoyé**                                              |
 | Repérer un autre événement (firmware, lubrification…) | **＋ Noter un événement** dans « Évolution »       |
+| Tester une touche après une intervention | **Tester** dans la notification, ou touche → **🎯 Tester la frappe** |
 | Corriger une erreur              | **Annuler** dans la notification, ou ✕ dans l'historique                 |
 
 ### Lire les résultats
@@ -51,6 +52,15 @@ statistiques, classement et analyse sont calculés séparément pour chacun. L'h
 - **Évolution** : courbes cumulées des doubles inputs et des appuis manqués, avec des repères pour chaque nettoyage, remplacement et
   événement noté, et le taux par semaine avant / après chacun. La fiche d'une touche montre la même
   courbe pour le switch installé (repères : nettoyages et inversions).
+
+### Test de frappe
+
+Après un nettoyage, une inversion ou un remplacement, recopiez un texte où la ou les touches concernées
+reviennent souvent (**🎯 Test de frappe** dans « Évolution » pour un texte général). La correction est
+désactivée : un caractère en trop qui répète une lettre tapée juste avant (« coucouc » pour « coucou »)
+est proposé comme double input, un caractère absent comme appui manqué. Les fautes de frappe ordinaires
+(mauvaise touche) sont ignorées. Vous cochez ce qui vient du clavier, puis le test et ses incidents
+sont enregistrés dans l'historique. Le texte tapé, lui, n'est pas conservé.
 
 ### Vos données
 
@@ -76,6 +86,7 @@ pour obtenir un jeton OAuth (modèle « token », sans backend). Les appels à l
 index.html          structure de la page et dialogues
 app.js              état, rendu, actions, authentification et synchro Drive
 layouts.js          définitions des claviers et libellés par disposition
+typing.js           test de frappe : texte à recopier et détection des erreurs (logique pure)
 config.js           Client ID OAuth et nom du fichier Drive
 style.css           styles (clair / sombre via prefers-color-scheme)
 privacy.html, terms.html
@@ -94,6 +105,8 @@ avec un `id` et une date de modification `u` :
     "<id>": { "id", "kb", "ts", "u", "deleted?", "type": "double" | "skip", "key": "KeyQ" }
     //        type "swap"    → "a", "b"  (deux positions)
     //        type "replace" → "key"
+    //        type "clean"   → "key" ; type "note" → "text"
+    //        type "test"    → "keys" (positions ciblées), "n" (caractères tapés), "found" (incidents retenus)
   }
 }
 ```
