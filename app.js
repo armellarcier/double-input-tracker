@@ -530,32 +530,44 @@
     return { ts: e.ts, ico: MARKS[e.type], txt };
   }
 
-  function chartHtml(hits, marks, from) {
+  // Une série par type d'incident : { k, hits: [ts…] }. Les types sans incident sont masqués.
+  function seriesOf(keep) {
+    const all = Object.keys(KINDS).map((k) => ({
+      k, hits: st.events.filter((e) => e.type === k && st.swAt[e.id] && keep(e)).map((e) => e.ts),
+    }));
+    const some = all.filter((s) => s.hits.length);
+    return some.length ? some : all;
+  }
+
+  function chartHtml(series, marks, from) {
     const span = Math.max(1, Date.now() - from);
     const x = (t) => Math.min(1000, Math.max(0, ((t - from) / span) * 1000));
-    const N = Math.max(1, hits.length);
+    const N = Math.max(1, ...series.map((s) => s.hits.length));
     const y = (n) => (100 - (n / N) * 92).toFixed(1);
-    let d = `M0 ${y(0)}`;
-    hits.forEach((t, i) => { d += `H${x(t).toFixed(1)}V${y(i + 1)}`; });
-    d += 'H1000';
-    return `<div class="chart k-${state.kind}">
+    const path = (hits) => {
+      let d = `M0 ${y(0)}`;
+      hits.forEach((t, i) => { d += `H${x(t).toFixed(1)}V${y(i + 1)}`; });
+      return d + 'H1000';
+    };
+    return `<div class="chart">
+      <div class="legend2">${series.map((s) => `<span class="k-${s.k}"><i></i>${KINDS[s.k].title} <b>${s.hits.length}</b></span>`).join('')}</div>
       <div class="plot">
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
-          <path class="area" d="${d}V100H0Z"/><path class="line" d="${d}"/></svg>
+          ${series.map((s) => `<path class="line k-${s.k}" d="${path(s.hits)}"/>`).join('')}</svg>
         ${marks.map((m) => `<div class="mark" style="left:${(x(m.ts) / 10).toFixed(2)}%" title="${esc(m.txt)} · ${dtf.format(m.ts)}"><span>${m.ico}</span></div>`).join('')}
-        <span class="ymax">${hits.length}</span>
+        <span class="ymax">${N}</span>
       </div>
       <div class="xaxis"><span>${dday.format(from)}</span><span>aujourd'hui</span></div>
     </div>`;
   }
 
   // Taux par semaine entre chaque repère et le précédent / le suivant.
-  function compareHtml(hits, marks, from) {
+  function compareHtml(series, marks, from) {
     if (!marks.length) return '';
-    const seg = (a, b) => {
-      const n = hits.filter((t) => t >= a && t < b).length;
-      return `<b>${rate(n, b - a)}</b><div class="muted small">${n} en ${dur(b - a)}</div>`;
-    };
+    const seg = (a, b) => series.map((s) => {
+      const n = s.hits.filter((t) => t >= a && t < b).length;
+      return `<div class="k-${s.k}">${KINDS[s.k].ico} <b>${rate(n, b - a)}</b> <span class="muted small">(${n})</span></div>`;
+    }).join('') + `<div class="muted small">sur ${dur(b - a)}</div>`;
     const rows = marks.map((m, i) => `<tr><td>${m.ico} ${esc(m.txt)}<div class="muted small">${dday.format(m.ts)}</div></td>
       <td class="num">${seg(i ? marks[i - 1].ts : from, m.ts)}</td>
       <td class="num">${seg(m.ts, marks[i + 1]?.ts ?? Date.now())}</td></tr>`).slice(-6).join('');
@@ -563,19 +575,18 @@
   }
 
   function trendHtml() {
-    const kd = KINDS[state.kind];
-    const hits = st.incidents.map((e) => e.ts);
+    const series = seriesOf(() => true);
     const marks = st.events.filter((e) => e.type === 'clean' || e.type === 'replace' || e.type === 'note').map(markOf);
     const btn = '<button class="btn" data-act="note">＋ Noter un événement</button>';
-    if (!hits.length && !marks.length) {
+    if (!series.some((s) => s.hits.length) && !marks.length) {
       return `<section class="card"><h2>Évolution</h2>
         <p class="explain">Nettoyez un switch (touche → « Nettoyé ») ou notez un événement (firmware, lubrification…)
-        pour comparer le nombre de ${kd.many} avant et après.</p>${btn}</section>`;
+        pour comparer le nombre d'incidents avant et après.</p>${btn}</section>`;
     }
-    return `<section class="card"><h2>Évolution des ${kd.many}</h2>
-      <p class="explain">Total cumulé : plus la courbe monte vite, plus il y en a. Les repères marquent nettoyages,
+    return `<section class="card"><h2>Évolution</h2>
+      <p class="explain">Totaux cumulés : plus une courbe monte vite, plus il y a d'incidents. Les repères marquent nettoyages,
       remplacements et événements notés. Une durée inférieure à un jour n'affiche pas de taux.</p>
-      ${chartHtml(hits, marks, st.kb.createdAt)}${compareHtml(hits, marks, st.kb.createdAt)}${btn}</section>`;
+      ${chartHtml(series, marks, st.kb.createdAt)}${compareHtml(series, marks, st.kb.createdAt)}${btn}</section>`;
   }
 
   function eventHtml(e) {
@@ -626,12 +637,12 @@
       const all = st.events.filter((e) => e.type === k && st.swAt[e.id]);
       return { pos: all.filter((e) => e.key === code).length, sw: all.filter((e) => st.swAt[e.id] === sw.id).length };
     };
-    const hits = st.incidents.filter((e) => st.swAt[e.id] === sw.id).map((e) => e.ts);
+    const series = seriesOf((e) => st.swAt[e.id] === sw.id);
     const marks = st.events.filter((e) => (e.type === 'clean' && st.swAt[e.id] === sw.id)
       || (e.type === 'swap' && st.swapped[e.id]?.includes(sw.id))).map(markOf);
-    const trend = hits.length || marks.length
-      ? `<div><h3 style="margin-top:4px">${cap(KINDS[state.kind].many)} du switch ${esc(sw.label)}</h3>
-        ${chartHtml(hits, marks, sw.since)}${compareHtml(hits, marks, sw.since)}</div>` : '';
+    const trend = series.some((s) => s.hits.length) || marks.length
+      ? `<div><h3 style="margin-top:4px">Évolution du switch ${esc(sw.label)}</h3>
+        ${chartHtml(series, marks, sw.since)}${compareHtml(series, marks, sw.since)}</div>` : '';
     const line = (f) => Object.entries(KINDS).map(([k, v]) => `<span class="k-${k}">${v.ico} <b>${counts(k)[f]}</b></span>`).join(' ');
     $('#sheet').innerHTML = `
       <div class="sheet-body">

@@ -14,6 +14,8 @@
   --ok: #1a7f37;
   --warn: #b35c00;
   --radius: 14px;
+  /* Figée ici : --heat est redéfinie dans #content selon l'onglet actif. */
+  --double: var(--heat);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -257,12 +259,15 @@ label input, label select {
 .mini .counts b { display: inline; font-size: 1.2rem; }
 
 /* ---------- Graphiques d'évolution */
-.chart { --c: var(--heat); margin: 6px 0 10px; }
-.chart.k-skip { --c: var(--skip); }
+.chart { margin: 6px 0 10px; }
+.chart .k-double, .compare .k-double { --c: var(--double); }
+.chart .k-skip, .compare .k-skip { --c: var(--skip); }
+.legend2 { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); }
+.legend2 i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: var(--c); vertical-align: middle; margin-right: 6px; }
+.legend2 b { color: var(--text); }
 .plot { position: relative; height: 130px; margin: 22px 10px 0; border-bottom: 1px solid var(--line); }
 .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .plot .line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.plot .area { fill: color-mix(in srgb, var(--c) 12%, transparent); }
 .plot .mark { position: absolute; top: -20px; bottom: 0; width: 0; border-left: 1px dashed var(--muted); cursor: help; }
 .plot .mark span {
   position: absolute; top: 0; left: 0; transform: translateX(-50%);
@@ -271,5 +276,6 @@ label input, label select {
 .plot .ymax { position: absolute; top: -2px; left: 4px; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .xaxis { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin: 4px 10px 0; }
 .compare td { vertical-align: top; }
+.compare td.num div { white-space: nowrap; }
 .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .row3 .btn { padding: 8px 4px; }

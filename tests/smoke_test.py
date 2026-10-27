@@ -56,6 +56,8 @@ def run(page, name, size):
     page.wait_for_timeout(200)
     assert page.locator('#content .chart .mark').count() == 2, 'repères nettoyage + événement'
     assert 'Firmware' in page.inner_text('.compare'), 'comparaison avant/après'
+    assert page.locator('#content .chart path.k-double').count() == 1, 'courbe des doubles inputs'
+    assert page.locator('#content .chart path.k-skip').count() == 1, 'courbe des appuis manqués'
     page.click('.key[data-key=KeyE]')
     assert page.locator('#sheet .chart .mark').count() == 2, 'repères du switch : inversion + nettoyage'
     page.screenshot(path=str(OUT / f'{name}-sheet.png'))

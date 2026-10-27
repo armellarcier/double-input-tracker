@@ -48,7 +48,7 @@ statistiques, classement et analyse sont calculés séparément pour chacun. L'h
   - Pour un appui manqué, pensez aussi à un switch mal enfoncé dans son socket ou à un stabilisateur qui accroche.
   - **« suit la position »** → regardez plutôt la soudure, le socket hotswap, le PCB ou le debounce du firmware.
   - Une durée courte n'est pas encore significative : comparez les taux par semaine.
-- **Évolution** : courbe cumulée des incidents avec des repères pour chaque nettoyage, remplacement et
+- **Évolution** : courbes cumulées des doubles inputs et des appuis manqués, avec des repères pour chaque nettoyage, remplacement et
   événement noté, et le taux par semaine avant / après chacun. La fiche d'une touche montre la même
   courbe pour le switch installé (repères : nettoyages et inversions).
 
