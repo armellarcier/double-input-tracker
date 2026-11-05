@@ -62,6 +62,12 @@ est proposé comme double input, un caractère absent comme appui manqué. Les f
 (mauvaise touche) sont ignorées. Vous cochez ce qui vient du clavier, puis le test et ses incidents
 sont enregistrés dans l'historique. Le texte tapé, lui, n'est pas conservé.
 
+Si l'une des touches ne tape pas de caractère (Shift, Ctrl, Alt, F1–F12, Échap, Tab, flèches…), le test
+devient un **test d'appuis** : une suite de touches à presser dans l'ordre, chacune au moins 40 fois et
+jamais deux fois de suite (une touche seule alterne avec Espace). Un appui en trop est un double input, un
+appui absent un appui manqué. F5, Tab, Échap… sont interceptés pendant le test. Fn (géré par le clavier
+lui-même) et, sous Windows, la touche Windows (captée par le système) ne sont pas visibles d'une page web.
+
 ### Vos données
 
 - Elles sont stockées dans un fichier `double-input-tracker.json` de votre Google Drive. L'application

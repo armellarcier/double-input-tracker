@@ -1,5 +1,6 @@
 // Test de frappe : génération d'un texte à recopier et détection des erreurs.
 // Logique pure (aucun accès au DOM ni aux données) ; l'interface est dans app.js.
+// Les touches sans caractère (Shift, F5…) passent par sequence() : une suite de codes, alignée de la même façon.
 //
 // Le texte est comparé caractère par caractère à la saisie par un alignement
 // (distance d'édition). Un caractère en trop qui répète un caractère tapé juste avant
@@ -82,17 +83,41 @@
     return words.map((w, i) => (i && i % per === 0 ? '\n' : i ? ' ' : '') + w).join('');
   }
 
+  // Test d'appuis (touches sans caractère : Shift, F5…) : suite de codes de touches où chaque cible
+  // revient NEED fois, jamais deux fois de suite (sinon un double input serait indiscernable d'un appui voulu).
+  // Une seule cible : elle alterne avec ref (Espace).
+  function sequence(targets, ref, rnd = Math.random) {
+    const left = Object.fromEntries(targets.map((c) => [c, NEED]));
+    const out = [];
+    for (;;) {
+      const last = out[out.length - 1];
+      const pool = targets.filter((c) => left[c] && c !== last);
+      if (!pool.length) {
+        if (!targets.some((c) => left[c])) return out;
+        out.push(ref); // seule reste la touche qu'on vient de taper
+        continue;
+      }
+      let r = rnd() * pool.reduce((a, c) => a + left[c], 0);
+      const c = pool.find((x) => (r -= left[x]) < 0) ?? pool[pool.length - 1];
+      out.push(c);
+      left[c]--;
+    }
+  }
+
   // Alignement de la saisie T sur le texte attendu E. La fin de E non encore tapée est gratuite.
-  // Renvoie { ops: [{ op: '=' | 'sub' | 'ins' | 'del', i, c, t }], end } ; i = indice dans E.
-  function align(E, T) {
+  // Renvoie { ops: [{ op: '=' | 'sub' | 'ins' | 'del', i, c, t, j }], end } ; i = indice dans E, j dans T (ins).
+  // fast(j) : T[j] répète très vite l'appui précédent (rebond de switch). Une telle insertion coûte moitié moins,
+  // ce qui départage les alignements équivalents d'une suite régulière (Shift Espace Shift Espace…).
+  function align(E, T, fast = () => false) {
     const n = E.length, m = T.length, W = m + 1;
+    const ins = (j) => (fast(j - 1) ? 1 : 2); // coûts doublés pour rester entiers
     const D = new Int32Array((n + 1) * W);
-    for (let i = 0; i <= n; i++) D[i * W] = i;
-    for (let j = 0; j <= m; j++) D[j] = j;
+    for (let i = 0; i <= n; i++) D[i * W] = 2 * i;
+    for (let j = 1; j <= m; j++) D[j] = D[j - 1] + ins(j);
     for (let i = 1; i <= n; i++) {
       for (let j = 1; j <= m; j++) {
-        const s = D[(i - 1) * W + j - 1] + (E[i - 1] === T[j - 1] ? 0 : 1);
-        D[i * W + j] = Math.min(s, D[(i - 1) * W + j] + 1, D[i * W + j - 1] + 1);
+        const s = D[(i - 1) * W + j - 1] + (E[i - 1] === T[j - 1] ? 0 : 2);
+        D[i * W + j] = Math.min(s, D[(i - 1) * W + j] + 2, D[i * W + j - 1] + ins(j));
       }
     }
     let end = 0;
@@ -102,14 +127,14 @@
     while (i > 0 || j > 0) {
       const d = D[i * W + j];
       if (i && j && E[i - 1] === T[j - 1] && d === D[(i - 1) * W + j - 1]) { ops.push({ op: '=', i: --i, c: E[i], t: T[--j] }); }
-      else if (j && d === D[i * W + j - 1] + 1) { ops.push({ op: 'ins', i, t: T[--j] }); }
-      else if (i && d === D[(i - 1) * W + j] + 1) { ops.push({ op: 'del', i: --i, c: E[i] }); }
+      else if (j && d === D[i * W + j - 1] + ins(j)) { ops.push({ op: 'ins', i, t: T[--j], j }); }
+      else if (i && d === D[(i - 1) * W + j] + 2) { ops.push({ op: 'del', i: --i, c: E[i] }); }
       else { ops.push({ op: 'sub', i: --i, c: E[i], t: T[--j] }); }
     }
     return { ops: ops.reverse(), end };
   }
 
-  // Incidents probables : { kind: 'double' | 'skip', c, i, sure }.
+  // Incidents probables : { kind: 'double' | 'skip', c, i, j, sure }.
   // Une suite d'au moins 3 caractères manquants (mot sauté) n'est pas un défaut de switch.
   function findings(E, ops) {
     const out = [];
@@ -117,7 +142,7 @@
       const o = ops[k];
       if (o.op === 'ins') {
         const near = E.slice(Math.max(0, o.i - 4), o.i + 1);
-        out.push({ kind: 'double', c: o.t, i: o.i, sure: near.includes(o.t) });
+        out.push({ kind: 'double', c: o.t, i: o.i, j: o.j, sure: near.includes(o.t) });
       } else if (o.op === 'del') {
         let a = k, b = k;
         while (ops[a - 1]?.op === 'del') a--;
@@ -128,5 +153,5 @@
     return out;
   }
 
-  window.Typing = { text, align, findings };
+  window.Typing = { text, sequence, align, findings };
 })();

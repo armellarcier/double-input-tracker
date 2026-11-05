@@ -300,6 +300,14 @@ label input, label select {
 }
 #ttInput.nope { animation: nope .3s; border-color: var(--warn); }
 @keyframes nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.tt-text.keys { font: .9rem/2.1 system-ui, sans-serif; }
+.tt-text kbd, .tk-next kbd {
+  display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+  font: inherit; line-height: 1.5; white-space: nowrap;
+}
+.tt-text .extra kbd, .tt-text .miss kbd { border-color: currentColor; }
+.tk-next { display: flex; align-items: center; gap: 8px; min-height: 64px; outline: none; color: var(--muted); font-size: 1rem; }
+.tk-next kbd:first-child { color: var(--text); font-size: 1.6rem; padding: 4px 14px; border-color: var(--accent); }
 .tt-live { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .tt-live .k-double b, .ctx mark.k-double { color: var(--double); }
 .tt-live .k-skip b, .ctx mark.k-skip { color: var(--skip); }
@@ -307,6 +315,7 @@ label input, label select {
 .tt-sugg li { border-top: 1px solid var(--line); }
 .tt-sugg li:first-child { border-top: 0; }
 label.sugg { flex-direction: row; align-items: flex-start; gap: 10px; padding: 8px 0; color: var(--text); font-size: .95rem; cursor: pointer; }
+label.sugg > span { min-width: 0; }
 label.sugg input { flex: none; width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; }
 .ctx { display: block; font: .85rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .ctx mark { background: var(--key); font-weight: 700; border-radius: 3px; padding: 0 1px; }

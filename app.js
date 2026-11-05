@@ -604,7 +604,7 @@
     } else if (e.type === 'note') {
       ico = MARKS.note; txt = esc(e.text || 'Événement');
     } else if (e.type === 'test') {
-      ico = '🎯'; txt = `Test de frappe${e.keys?.length ? ' sur ' + e.keys.map(n).join(', ') : ''} : ${e.n} caractères, ${plural(e.found, 'incident', 'incidents')}`;
+      ico = '🎯'; txt = `Test de frappe${e.keys?.length ? ' sur ' + e.keys.map(n).join(', ') : ''} : ${e.mode === 'keys' ? plural(e.n, 'appui', 'appuis') : e.n + ' caractères'}, ${plural(e.found, 'incident', 'incidents')}`;
     } else if (e.type === 'replace') {
       const old = st.switches[st.replaced[e.id]];
       ico = '♻'; txt = `Switch neuf sur ${n(e.key)}${old ? ` <span class="muted small">remplace ${esc(old.label)}</span>` : ''}`;
@@ -701,47 +701,79 @@
     return m;
   }
 
+  // Touches invisibles pour une page web : Fn (géré par le clavier lui-même), touche Windows (captée par le système).
+  const blind = (code) => code === 'Fn' || (/^Meta/.test(code) && /Win/.test(navigator.platform));
+
+  // Deux modes : texte à recopier si toutes les touches ciblées tapent un caractère ; sinon (Shift, F5, Tab…)
+  // test d'appuis, où chaque appui physique compte par son code, caractère ou non.
   function openTest(keys) {
-    const map = charMap(keys);
-    const chars = keys.map((c) => L.char(c, st.kb.variant)).filter((c) => c != null);
-    state.test = { keys, map, text: T.text(new Set(Object.keys(map)), chars), typed: '', done: false };
+    if (keys.some((c) => L.char(c, st.kb.variant) == null)) {
+      const aim = keys.filter((c) => !blind(c));
+      state.test = { mode: 'keys', keys, aim, seq: aim.length ? T.sequence(aim, 'Space') : [], typed: [], times: [], down: new Set(), done: false };
+    } else {
+      const map = charMap(keys);
+      const chars = keys.map((c) => L.char(c, st.kb.variant)).filter((c) => c != null);
+      state.test = { mode: 'text', keys, map, text: T.text(new Set(Object.keys(map)), chars), typed: '', done: false };
+    }
     renderTest();
     const d = $('#testDlg');
     if (!d.open) d.showModal();
-    $('#ttInput').focus();
+    // Test d'appuis : focus hors des boutons, qu'Espace ou Entrée n'actionneraient sinon.
+    $(state.test.mode === 'keys' ? '#tkNext' : '#ttInput')?.focus();
   }
 
+  // Rebond de switch : quelques dizaines de ms ; deux appuis voulus de la même touche sont bien plus espacés.
+  const FAST_MS = 80;
+  const fastRepeat = (t, j) => j > 0 && t.typed[j] === t.typed[j - 1] && t.times[j] - t.times[j - 1] < FAST_MS;
+
+  const expected = (t) => (t.mode === 'keys' ? t.seq : t.text);
+
   function testResult() {
-    const t = state.test;
-    const { ops, end } = T.align(t.text, t.typed.toLowerCase());
-    const found = T.findings(t.text, ops).map((f) => ({ ...f, key: t.map[f.c] })).filter((f) => f.key);
+    const t = state.test, keys = t.mode === 'keys', E = expected(t);
+    const { ops, end } = keys ? T.align(E, t.typed, (j) => fastRepeat(t, j)) : T.align(E, t.typed.toLowerCase());
+    const found = T.findings(E, ops).map((f) => keys
+      // Test d'appuis : un appui en trop n'est un double input probable que s'il suit le précédent de très près.
+      ? { ...f, key: f.c, ...(f.kind === 'double' && { sure: fastRepeat(t, f.j), ms: f.j ? Math.round(t.times[f.j] - t.times[f.j - 1]) : null }) }
+      : { ...f, key: t.map[f.c] }).filter((f) => f.key);
     return { ops, end, found, typos: ops.filter((o) => o.op === 'sub').length };
   }
 
+  const kbd = (c) => `<kbd>${esc(st.name(c))}</kbd>`;
+
   function testTextHtml(r) {
-    const plain = (c) => (c === '\n' ? '↵\n' : esc(c));
+    const t = state.test, keys = t.mode === 'keys', sep = keys ? ' ' : '';
+    const plain = keys ? kbd : (c) => (c === '\n' ? '↵\n' : esc(c));
+    const mark = keys ? kbd : (c) => esc(vis(c));
     const body = r.ops.map((o) => o.op === '=' ? plain(o.c)
-      : o.op === 'ins' ? `<span class="extra">${esc(vis(o.t))}</span>`
-      : o.op === 'del' ? `<span class="miss">${esc(vis(o.c))}</span>`
-      : `<span class="sub" title="Tapé : ${esc(vis(o.t))}">${esc(vis(o.c))}</span>`).join('');
-    return `<span class="done">${body}</span><span class="cur"></span>${[...state.test.text.slice(r.end)].map(plain).join('')}`;
+      : o.op === 'ins' ? `<span class="extra">${mark(o.t)}</span>`
+      : o.op === 'del' ? `<span class="miss">${mark(o.c)}</span>`
+      : `<span class="sub" title="Tapé : ${esc(keys ? st.name(o.t) : vis(o.t))}">${mark(o.c)}</span>`).join(sep);
+    return `<span class="done">${body}</span>${sep}<span class="cur"></span>${[...expected(t).slice(r.end)].map(plain).join(sep)}`;
   }
 
   function updateTest() {
-    const r = testResult();
+    const r = testResult(), t = state.test;
     const n = (k) => r.found.filter((f) => f.kind === k && f.sure).length;
     $('#ttText').innerHTML = testTextHtml(r);
-    $('#ttLive').innerHTML = `<span>${r.end} / ${state.test.text.length}</span>`
+    $('#ttLive').innerHTML = `<span>${r.end} / ${expected(t).length}</span>`
       + Object.entries(KINDS).map(([k, v]) => `<span class="k-${k}">${v.ico} <b>${n(k)}</b> ${v.many}</span>`).join('');
+    if (t.mode === 'keys') $('#tkNext').innerHTML = t.seq.slice(r.end, r.end + 4).map(kbd).join('') || '✓';
     $('#ttText .cur').scrollIntoView({ block: 'nearest' });
     return r;
+  }
+
+  // Fin automatique au dernier caractère ; délai pour laisser passer un éventuel double input final.
+  function afterInput() {
+    const r = updateTest();
+    clearTimeout(testTimer);
+    if (r.end === expected(state.test).length && r.ops[r.ops.length - 1]?.op === '=') testTimer = setTimeout(finishTest, 800);
   }
 
   function finishTest() {
     const t = state.test;
     clearTimeout(testTimer);
     if (!t || t.done) return;
-    if (!t.typed) return $('#testDlg').close();
+    if (!t.typed.length) return $('#testDlg').close();
     const r = testResult();
     t.result = { ...r, n: t.typed.length, found: r.found.map((f) => ({ ...f, on: f.sure })) };
     t.done = true;
@@ -749,6 +781,12 @@
   }
 
   function ctxHtml(f) {
+    if (state.test.mode === 'keys') {
+      const E = state.test.seq, v = (a) => a.map((c) => esc(st.name(c))).join(' · ');
+      const c = f.kind === 'double' ? f.c : E[f.i];
+      return `…${v(E.slice(Math.max(0, f.i - 2), f.i))} <mark class="k-${f.kind}">${esc(st.name(c))}</mark> `
+        + `${v(E.slice(f.kind === 'double' ? f.i : f.i + 1, f.i + 2))}…`;
+    }
     const E = state.test.text, v = (s) => esc(s.replace(/\n/g, ' '));
     const c = f.kind === 'double' ? f.c : E[f.i];
     return `…${v(E.slice(Math.max(0, f.i - 8), f.i))}<mark class="k-${f.kind}">${esc(vis(c))}</mark>`
@@ -758,15 +796,34 @@
   function renderTest() {
     const t = state.test, d = $('#testDlg');
     const names = (codes) => codes.map((c) => `<b>${esc(st.name(c))}</b>`).join(', ');
-    const off = t.keys.filter((c) => L.char(c, st.kb.variant) == null);
-    const aimed = t.keys.filter((c) => !off.includes(c));
-    const presses = (c) => `<b>${esc(st.name(c))}</b> ×${t.text.split(L.char(c, st.kb.variant)).length - 1}`;
+    const keys = t.mode === 'keys';
+    const off = keys ? t.keys.filter(blind) : [];
+    const aimed = keys ? t.aim : t.keys;
+    const presses = (c) => `<b>${esc(st.name(c))}</b> ×${keys ? t.seq.filter((x) => x === c).length
+      : t.text.split(L.char(c, st.kb.variant)).length - 1}`;
     const head = `<div class="sheet-head"><div><h2>🎯 Test de frappe</h2>
-      <p class="muted small">${aimed.length ? 'Appuis par touche ciblée : ' + aimed.map(presses).join(', ') : 'Texte général : toutes les touches'}</p></div>
+      <p class="muted small">${aimed.length ? 'Appuis par touche ciblée : ' + aimed.map(presses).join(', ') : keys ? 'Aucune touche testable' : 'Texte général : toutes les touches'}</p></div>
       <button class="icon" data-act="close-test" aria-label="Fermer">✕</button></div>`;
+    const blindHtml = off.length ? `<p class="explain">Invisible pour une page web, donc non testé : ${names(off)}.</p>` : '';
+    if (keys && !t.done && !aimed.length) {
+      d.innerHTML = `<div class="sheet-body">${head}${blindHtml}</div>`;
+      return;
+    }
+    if (keys && !t.done) {
+      d.innerHTML = `<div class="sheet-body">${head}${blindHtml}
+        <p class="explain">Appuyez sur les touches dans l'ordre, une à la fois, à votre rythme habituel. Si un appui ne s'affiche
+        pas, ne réappuyez pas : passez à la suivante, il sera compté comme appui manqué. Une touche maintenue ne compte qu'une fois.
+        Échap, F5, Tab… sont interceptés pendant le test.</p>
+        <div class="tk-next" id="tkNext" tabindex="-1" aria-live="polite"></div>
+        <div class="tt-text keys" id="ttText"></div>
+        <div class="tt-live muted small" id="ttLive"></div>
+        <div class="row2"><button class="btn" data-act="test-new">↻ Autre suite</button><button class="btn primary" data-act="test-end">Terminer</button></div>
+      </div>`;
+      updateTest();
+      return;
+    }
     if (!t.done) {
       d.innerHTML = `<div class="sheet-body">${head}
-        ${off.length ? `<p class="explain">Pas de caractère à taper, donc non testé : ${names(off)}.</p>` : ''}
         <p class="explain">Recopiez le texte sur le clavier, à votre rythme habituel. Sans correction : chaque erreur
         sert à repérer un double input (rouge) ou un appui manqué (bleu).</p>
         <div class="tt-text" id="ttText"></div>
@@ -782,11 +839,12 @@
     const on = r.found.filter((f) => f.on).length;
     const items = r.found.map((f, i) => `<li><label class="sugg"><input type="checkbox" data-i="${i}" ${f.on ? 'checked' : ''}>
       <span>${KINDS[f.kind].ico} ${cap(KINDS[f.kind].one)} sur <b>${esc(st.name(f.key))}</b>
-      ${f.sure ? '' : '<span class="muted small">· caractère en trop, sans répétition proche</span>'}
+      ${f.ms != null ? `<span class="muted small">· ${f.ms} ms après l'appui précédent</span>`
+        : f.sure ? '' : `<span class="muted small">· ${keys ? 'appui' : 'caractère'} en trop, sans répétition proche</span>`}
       <span class="ctx">${ctxHtml(f)}</span></span></label></li>`).join('');
     d.innerHTML = `<div class="sheet-body">${head}
-      <div class="tt-text">${testTextHtml(r)}</div>
-      <p class="muted small">${t.typed.length} caractères tapés${r.typos ? ` · ${plural(r.typos, 'faute de frappe ignorée', 'fautes de frappe ignorées')} (mauvaise touche)` : ''}</p>
+      <div class="tt-text${keys ? ' keys' : ''}">${testTextHtml(r)}</div>
+      <p class="muted small">${keys ? plural(r.n, 'appui', 'appuis') : `${r.n} caractères tapés`}${r.typos ? ` · ${plural(r.typos, 'faute de frappe ignorée', 'fautes de frappe ignorées')} (mauvaise touche)` : ''}</p>
       ${r.found.length
         ? `<p class="explain">Décochez les erreurs qui viennent de vous plutôt que du clavier.</p><ul class="tt-sugg">${items}</ul>`
         : `<p><b>✓ Aucun double input ni appui manqué détecté.</b></p>`}
@@ -924,7 +982,7 @@
       const now = Date.now(), ids = [];
       const put = (e) => { const ev = { id: uid(), ts: now, kb: st.kb.id, ...e, u: now }; data.events[ev.id] = ev; ids.push(ev.id); };
       for (const f of sel) put({ type: f.kind, key: f.key });
-      put({ type: 'test', keys: t.keys, n: t.result.n, found: sel.length });
+      put({ type: 'test', keys: t.keys, n: t.result.n, found: sel.length, ...(t.mode === 'keys' && { mode: 'keys' }) });
       $('#testDlg').close();
       commit();
       toast(`🎯 Test enregistré${sel.length ? ` : ${plural(sel.length, 'incident noté', 'incidents notés')}` : ', aucun incident'}`, () => {
@@ -984,11 +1042,36 @@
   testDlg.addEventListener('input', (e) => {
     if (e.target.id !== 'ttInput' || !state.test || state.test.done) return;
     state.test.typed = e.target.value;
-    const r = updateTest();
-    clearTimeout(testTimer);
-    // Délai : laisse le temps à un éventuel double input sur le dernier caractère.
-    if (r.end === state.test.text.length && r.ops[r.ops.length - 1]?.op === '=') testTimer = setTimeout(finishTest, 800);
+    afterInput();
   });
+
+  // Test d'appuis : chaque appui compte par son code. Tout est intercepté pendant le test
+  // (F5 ne recharge pas, Tab ne déplace pas le focus, Échap ne ferme pas, Alt n'ouvre pas de menu).
+  const pressing = () => state.test?.mode === 'keys' && !state.test.done && testDlg.open;
+  function press(code, ts) {
+    state.test.typed.push(code);
+    state.test.times.push(ts);
+    afterInput();
+  }
+  addEventListener('keydown', (e) => {
+    if (!pressing()) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = state.test;
+    if (e.repeat || !(e.code in st.pos)) return;
+    // AltGr sous Windows : précédé d'un faux Ctrl gauche au même instant.
+    if (e.code === 'AltRight' && t.typed[t.typed.length - 1] === 'ControlLeft' && e.timeStamp - t.lastTs < 10) { t.typed.pop(); t.times.pop(); }
+    t.down.add(e.code); t.lastTs = e.timeStamp;
+    press(e.code, e.timeStamp);
+  }, true);
+  addEventListener('keyup', (e) => {
+    if (!pressing()) return;
+    e.preventDefault(); e.stopPropagation();
+    // Relâchement sans appui signalé (Impr. écran sous Windows) : il compte comme l'appui.
+    if (e.code in st.pos && !state.test.down.delete(e.code)) press(e.code, e.timeStamp);
+  }, true);
+  addEventListener('contextmenu', (e) => { if (pressing()) e.preventDefault(); }, true);
+  testDlg.addEventListener('cancel', (e) => { if (pressing()) e.preventDefault(); });
+  addEventListener('blur', () => state.test?.down?.clear());
 
   $('#newKb').addEventListener('close', () => {
     const d = $('#newKb'), f = $('#newKbForm');
